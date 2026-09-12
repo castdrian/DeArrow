@@ -1,97 +1,114 @@
+#import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 
-@interface ELMImageDownloader : NSObject
-
-- (id)downloadImageWithURL:(NSURL *)url targetSize:(CGSize)size
-	callbackQueue:(id)queue downloadProgress:(id)progress
-	completion:(void(^)(UIImage *image, NSError *error, id arg3, id arg4))completion;
-- (UIImage *)cachedImageWithURL:(NSURL *)url;
-
-@end
-
-@interface _ASCollectionViewCell : UICollectionViewCell
-@end
-
 @interface ASDisplayNode : NSObject
-- (ASDisplayNode *)yogaParent;
-- (NSArray<ASDisplayNode *> *)yogaChildren;
-- (UIView *)view;
+@property(nonatomic, weak) ASDisplayNode *yogaParent;
+- (void)addSubnode:(id)subnode;
+- (void)insertYogaChild:(id)child atIndex:(NSUInteger)index;
 @end
 
-@interface ASControlNode : ASDisplayNode
+@interface ELMCellNode : ASDisplayNode
+@property(nonatomic, strong) id element;
 @end
 
-@interface ASTextNode : ASControlNode
-@property (copy) NSAttributedString *attributedText;
+@interface ASImageNode : ASDisplayNode
+@property(nonatomic, strong) UIImage *image;
 @end
 
-@interface ELMTextNode : ASTextNode
-@property (nonatomic, strong) NSNumber *DeArrow_userOverride;
-@property (nonatomic, assign) BOOL DeArrow_override;
-@property (nonatomic, strong) NSString *DeArrow_overrideTitle;
-@property (nonatomic, strong) NSAttributedString *DeArrow_originalTitle;
-- (void)DeArrow_handleLabelPress;
-- (void)DeArrow_setupOverride;
-@end
-
-@interface _ASDisplayView : UIView
-@property (nonatomic, assign) BOOL DeArrow_isVideoView;
-@property (nonatomic, strong) ELMTextNode *DeArrow_titleNode;
-@property (nonatomic, strong) _ASDisplayView *DeArrow_titleView;
-- (ASDisplayNode *)keepalive_node;
-- (BOOL)DeArrow_handleTap:(CGPoint)point;
-@end
-
-@interface ELMContainerNode : ASDisplayNode
-@end
-
-@interface ASImageNode : ASControlNode
-@property (strong) UIImage *image;
-@end
-
-@interface ASNetworkImageNode : ASImageNode
-- (void)_setImage:(UIImage *)image;
-@end
-
-@interface ELMImageNode : ASNetworkImageNode
-@property (nonatomic, strong) ELMTextNode *DeArrow_titleNode;
+@interface ELMImageNode : ASImageNode
 - (void)imageNode:(id)node didLoadImage:(UIImage *)image;
 @end
 
-@interface NIAttributedLabel : UILabel
+@interface ASTextNode : ASDisplayNode
+@property(nonatomic, copy) NSAttributedString *attributedText;
 @end
 
-@interface YTFormattedStringLabel : NIAttributedLabel
-@property (nonatomic, strong) NSNumber *DeArrow_userOverride;
-@property (nonatomic, assign) BOOL DeArrow_override;
-@property (nonatomic, strong) NSString *DeArrow_overrideTitle;
-@property (nonatomic, strong) NSAttributedString *DeArrow_originalTitle;
-@property (nonatomic, strong) UITapGestureRecognizer *DeArrow_tapGesture;
-@property (nonatomic, strong) NSString *DeArrow_debug;
-- (void)DeArrow_handleLabelPress;
-- (void)DeArrow_discover;
-- (void)DeArrow_setupOverride;
+@interface ELMTextNode : ASTextNode
+@property(nonatomic, strong) id element;
 @end
 
-@interface YTImageView : UIView
-- (id)delegate;
-@end
-
-@interface UIView(Private)
-- (UIViewController *)_viewControllerForAncestor;
+@interface YTFormattedStringLabel : UILabel
 @end
 
 @interface YTThumbnailController : NSObject
-@property (nonatomic, strong) NSString *DeArrow_videoID;
+- (instancetype)initWithImageView:(id)imageView URLs:(NSDictionary *)URLs imageService:(id)imageService;
 @end
 
-@interface YTVideoThumbnailView : UIView
+@interface YTImageView : UIView
+@property(nonatomic, weak) id delegate;
+- (void)setImage:(UIImage *)image animated:(BOOL)animated;
 @end
 
-@interface YTPriorityThumbnailController : YTThumbnailController
+@interface YTSettingsCell : UITableViewCell
 @end
 
-@interface YTIVideoDetails : NSObject
-@property (nonatomic, copy) NSString *videoId;
-@property (nonatomic, copy) NSString *title;
+@interface YTIIcon : NSObject
+@property(nonatomic) NSInteger iconType;
+@end
+
+@interface YTSettingsSectionItem : NSObject
++ (instancetype)itemWithTitle:(NSString *)title
+             titleDescription:(NSString *)titleDescription
+      accessibilityIdentifier:(NSString *)accessibilityIdentifier
+              detailTextBlock:(NSString *(^)(void))detailTextBlock
+                  selectBlock:(BOOL (^)(YTSettingsCell *, NSUInteger))selectBlock;
++ (instancetype)itemWithTitle:(NSString *)title
+             titleDescription:(NSString *)titleDescription
+      accessibilityIdentifier:(NSString *)accessibilityIdentifier
+              detailTextBlock:(NSString *(^)(void))detailTextBlock
+                  selectBlock:(BOOL (^)(YTSettingsCell *, NSUInteger))selectBlock
+                 settingItemId:(NSUInteger)settingItemId;
+@end
+
+@interface YTSettingsSectionItemManager : NSObject
+- (id)parentResponder;
+- (void)updateSectionForCategory:(NSUInteger)category withEntry:(id)entry;
+@end
+
+@interface YTSettingsGroupData : NSObject
+@property(nonatomic, readonly) NSUInteger type;
+- (instancetype)initWithGroupType:(NSUInteger)groupType;
+- (NSArray<NSNumber *> *)orderedCategories;
+- (NSArray<NSNumber *> *)orderedCategoriesForGroupType:(NSUInteger)type;
+- (NSString *)titleForSettingGroupType:(NSUInteger)type;
++ (NSMutableArray<NSNumber *> *)tweaks;
+@end
+
+@interface YTSettingsViewController : UIViewController
+- (void)setSectionItems:(NSMutableArray *)items
+            forCategory:(NSInteger)category
+                  title:(NSString *)title
+                  icon:(YTIIcon *)icon
+       titleDescription:(NSString *)titleDescription
+           headerHidden:(BOOL)headerHidden;
+- (void)setSectionItems:(NSMutableArray *)items
+            forCategory:(NSInteger)category
+                  title:(NSString *)title
+       titleDescription:(NSString *)titleDescription
+           headerHidden:(BOOL)headerHidden;
+- (void)sendSettingsNavigationEndpointForCategory:(NSUInteger)category;
+- (void)didReceiveDrillDownItem:(id)item;
+- (void)pushViewController:(UIViewController *)viewController;
+- (void)pushViewController:(UIViewController *)viewController animated:(BOOL)animated;
+- (void)showOrPushViewController:(UIViewController *)viewController;
+- (void)showViewController:(UIViewController *)viewController sender:(id)sender;
+- (void)reloadData;
+@end
+
+@interface YTAppSettingsGroupPresentationData : NSObject
++ (NSArray<YTSettingsGroupData *> *)orderedGroups;
+@end
+
+@interface YTPlayerViewController : UIViewController
+- (NSString *)currentVideoID;
+- (NSString *)contentVideoID;
+@end
+
+@interface YTReelPlayerViewController : UIViewController
+- (id)currentVideo;
+- (NSString *)videoId;
+@end
+
+@interface UIView (DeArrowPrivateController)
+- (UIViewController *)_viewControllerForAncestor;
 @end

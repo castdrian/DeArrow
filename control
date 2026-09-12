@@ -1,9 +1,14 @@
-Package: com.pixelomer.dearrow-ios
-Name: DeArrow-iOS
-Version: 0.0.1
+Package: dev.adrian.dearrow
+Name: DeArrow
+Version: 1.0.0
 Architecture: iphoneos-arm
-Description: An awesome MobileSubstrate tweak!
-Maintainer: pixelomer
-Author: pixelomer
+Description: Bring DeArrow titles and thumbnails to YouTube for iOS
+Maintainer: Adrian Castro
+Author: Adrian Castro
+Icon: https://repo.adriancastro.dev/assets/dearrow.svg
 Section: Tweaks
-Depends: mobilesubstrate (>= 0.9.5000)
+Depends: ellekit
+Replaces: com.pixelomer.dearrow-ios
+Conflicts: com.pixelomer.dearrow-ios
+Depiction: https://repo.adriancastro.dev/depictions/web/?p=dev.adrian.dearrow
+SileoDepiction: https://repo.adriancastro.dev/depictions/native/dev.adrian.dearrow/depiction.json
