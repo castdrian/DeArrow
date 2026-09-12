@@ -130,6 +130,14 @@ static void BindRelatedLabels(UIView *imageView, NSString *videoID) {
     binding.relatedViewsBound = YES;
 }
 
+static NSArray *ThumbnailURLValues(id URLs) {
+    if ([URLs isKindOfClass:[NSDictionary class]])
+        return [(NSDictionary *)URLs allValues];
+    if ([URLs isKindOfClass:[NSArray class]])
+        return URLs;
+    return nil;
+}
+
 static void InstallImageNodeSetter(Class targetClass) {
     SEL selector = @selector(setImage:);
     DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
@@ -166,7 +174,7 @@ static void InstallThumbnailControllerInitializer(Class targetClass) {
         return ^id(id object, SEL selector, UIView *imageView, NSDictionary *URLs, id imageService) {
             id result = ((id (*)(id, SEL, UIView *, NSDictionary *, id))original)(object, selector, imageView, URLs, imageService);
             NSString *videoID;
-            for (id value in URLs.allValues) {
+            for (id value in ThumbnailURLValues(URLs)) {
                 videoID = [VideoMetadataAdapters videoIDFromURL:value];
                 if (videoID.length)
                     break;
