@@ -142,8 +142,7 @@ static void InstallImageNodeSetter(Class targetClass) {
         ((void (*)(id, SEL, UIImage *))original)(object, command, image);
         if (!binding || !binding.applyingThumbnail) {
             binding = DeArrowBindingForObject(object, YES);
-            if (!binding.originalImage)
-                binding.originalImage = image;
+            binding.originalImage = image;
         }
         if (!binding.applyingThumbnail)
             ApplyThumbnailToObject(object, NO);
@@ -162,11 +161,9 @@ static void InstallImageLoadCallback(Class targetClass) {
     id replacement = ^(id object, SEL command, id node, UIImage *image) {
         ((void (*)(id, SEL, id, UIImage *))original)(object, command, node, image);
         BrandingBinding *binding = DeArrowBindingForObject(node, YES);
-        if (!binding.originalImage && image)
-            binding.originalImage = image;
+        binding.originalImage = image;
         BrandingBinding *objectBinding = DeArrowBindingForObject(object, YES);
-        if (!objectBinding.originalImage && image)
-            objectBinding.originalImage = image;
+        objectBinding.originalImage = image;
         ApplyThumbnailToObject(object, NO);
     };
     method_setImplementation(method, imp_implementationWithBlock(replacement));
@@ -211,8 +208,7 @@ static void InstallImageViewSetter(Class targetClass) {
         BrandingBinding *binding = DeArrowBindingForObject(object, NO);
         if (!binding || !binding.applyingThumbnail) {
             binding = DeArrowBindingForObject(object, YES);
-            if (!binding.originalImage)
-                binding.originalImage = image;
+            binding.originalImage = image;
         }
         if (!binding.applyingThumbnail) {
             VideoMetadataRecord *metadata = DeArrowStoredMetadataForObject(object);

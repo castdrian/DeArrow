@@ -5,12 +5,38 @@
 #import "IntegrationSupport.h"
 #import "Metadata.h"
 
-static void ResetNodeBinding(id object) {
-    BrandingBinding *binding = DeArrowBindingForObject(object, YES);
-    DeArrowCancelBinding(object);
-    binding = DeArrowBindingForObject(object, YES);
-    binding.metadata = nil;
-    binding.metadataAttempted = NO;
+static NSArray *NodeChildren(id object) {
+    if (!object || ![object respondsToSelector:NSSelectorFromString(@"yogaChildren")])
+        return nil;
+    @try {
+        id children = [object valueForKey:@"yogaChildren"];
+        return [children isKindOfClass:[NSArray class]] ? children : nil;
+    } @catch (__unused NSException *exception) {
+        return nil;
+    }
+}
+
+static void ResetNodeBinding(id object, NSUInteger depth) {
+    if (!object || depth > 12)
+        return;
+    BrandingBinding *binding = DeArrowBindingForObject(object, NO);
+    if (binding) {
+        DeArrowCancelBinding(object);
+        binding.metadata = nil;
+        binding.metadataAttempted = NO;
+        binding.originalTitle = nil;
+        binding.originalImage = nil;
+    }
+    for (id child in NodeChildren(object))
+        ResetNodeBinding(child, depth + 1);
+}
+
+static void AssociateNodeMetadata(id object, VideoMetadataRecord *metadata, NSUInteger depth) {
+    if (!object || !metadata || depth > 12)
+        return;
+    DeArrowAssociateMetadata(object, metadata);
+    for (id child in NodeChildren(object))
+        AssociateNodeMetadata(child, metadata, depth + 1);
 }
 
 static void InstallElementHook(Class targetClass) {
@@ -23,10 +49,10 @@ static void InstallElementHook(Class targetClass) {
     IMP original = method_getImplementation(method);
     id replacement = ^(id object, SEL command, id element) {
         ((void (*)(id, SEL, id))original)(object, command, element);
-        ResetNodeBinding(object);
+        ResetNodeBinding(object, 0);
         VideoMetadataRecord *metadata = [VideoMetadataAdapters recordForNode:object];
         if (metadata)
-            DeArrowAssociateMetadata(object, metadata);
+            AssociateNodeMetadata(object, metadata, 0);
         else
             DeArrowBindingForObject(object, YES).metadataAttempted = YES;
     };

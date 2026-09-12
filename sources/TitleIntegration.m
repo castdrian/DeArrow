@@ -100,7 +100,7 @@ static void HandleAttributedText(id object, SEL selector, NSAttributedString *va
         ((void (*)(id, SEL, NSAttributedString *))original)(object, selector, value);
         return;
     }
-    if (value.length)
+    if (value)
         binding.originalTitle = [value copy];
     DeArrowRegisterTitleObject(object);
     DeArrowPreferences *preferences = [DeArrowPreferences sharedPreferences];
