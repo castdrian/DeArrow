@@ -8,7 +8,7 @@ include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = DeArrow
 
-DeArrow_FILES = sources/Tweak.x sources/HookSupport.m sources/NodeIntegration.m sources/IntegrationSupport.m sources/Metadata.m sources/BrandingRecord.m sources/BrandingClient.m sources/Preferences.m sources/TitleIntegration.m sources/ThumbnailIntegration.m sources/SettingsIntegration.m sources/SettingsViewController.m
+DeArrow_FILES = $(shell find sources -name "*.x*" -o -name "*.m*")
 DeArrow_FRAMEWORKS = UIKit Foundation
 DEARROW_VERSION := $(shell sed -n 's/^Version: //p' control)
 DeArrow_CFLAGS = -Wno-deprecated-declarations -Wno-nullability-completeness -Wno-objc-method-access -fobjc-arc -Iheaders -DPACKAGE_VERSION='@"$(DEARROW_VERSION)"'
