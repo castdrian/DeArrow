@@ -116,22 +116,6 @@ func releaseSection(version string, changes []commit) string {
 	return strings.TrimSpace(strings.Join(lines, "\n"))
 }
 
-func currentSection(contents string, version string) string {
-	matches := sectionPattern.FindAllStringSubmatchIndex(contents, -1)
-	for index, match := range matches {
-		heading := contents[match[2]:match[3]]
-		if strings.SplitN(heading, " ", 2)[0] != version {
-			continue
-		}
-		end := len(contents)
-		if index+1 < len(matches) {
-			end = matches[index+1][0]
-		}
-		return strings.TrimSpace(contents[match[0]:end])
-	}
-	return ""
-}
-
 func removeCurrentSection(contents string, version string) string {
 	matches := sectionPattern.FindAllStringSubmatchIndex(contents, -1)
 	if len(matches) == 0 {
@@ -161,10 +145,7 @@ func update(root string, version string) error {
 	} else if !os.IsNotExist(err) {
 		return err
 	}
-	section := currentSection(contents, version)
-	if section == "" {
-		section = releaseSection(version, commitsSince(root, git(root, "describe", "--tags", "--abbrev=0")))
-	}
+	section := releaseSection(version, commitsSince(root, git(root, "describe", "--tags", "--abbrev=0")))
 	history := strings.TrimSpace(strings.TrimPrefix(removeCurrentSection(contents, version), "# Changelog"))
 	result := "# Changelog\n\n" + section
 	if history != "" {
