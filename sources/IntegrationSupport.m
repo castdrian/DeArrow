@@ -230,6 +230,7 @@ __attribute__((constructor)) static void DeArrowSupportInitialize(void) {
                                                              queue:nil
                                                         usingBlock:^(__unused NSNotification *notification) {
             DeArrowRefreshTitleObjects();
+            DeArrowRefreshThumbnailObjects();
         }];
     });
 }
