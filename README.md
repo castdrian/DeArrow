@@ -1,38 +1,36 @@
 # DeArrow
 
-DeArrow brings community-submitted titles and thumbnails to YouTube for iOS without touching YouTube’s networking or layout engine.
-
 [![Release](https://github.com/castdrian/DeArrow/actions/workflows/release.yml/badge.svg)](https://github.com/castdrian/DeArrow/actions/workflows/release.yml)
 [![Build](https://github.com/castdrian/DeArrow/actions/workflows/build.yml/badge.svg)](https://github.com/castdrian/DeArrow/actions/workflows/build.yml)
-[![License](https://img.shields.io/github/license/castdrian/DeArrow?style=flat-square)](https://github.com/castdrian/DeArrow/blob/main/LICENSE)
+
+YouTube tweak that brings community-submitted titles and thumbnails to YouTube for iOS.
 
 <p align="center"><img src="layout/Library/Application%20Support/DeArrow.bundle/dearrow.svg" alt="DeArrow" width="128"></p>
 
+## Download
+
+<p>
+  <a href="https://repo.adriancastro.dev"><img src="assets/apt-repo-badge.svg" alt="Add DeArrow to your package manager" height="60"></a>
+  &nbsp;
+  <a href="https://github.com/castdrian/DeArrow/releases/latest"><img src="assets/github-release-badge.svg" alt="Download the latest DeArrow release" height="60"></a>
+</p>
+
 ## Features
 
-- Replaces eligible video titles with DeArrow alternatives.
-- Replaces eligible thumbnails through the dedicated DeArrow thumbnail service.
-- Covers feeds, search, related videos, playlists, channel listings, playback, and Shorts.
-- Coalesces requests, caches positive and negative results, and cancels stale cell work.
-- Provides a native YouTube settings entry with independent title and thumbnail controls.
-- Supports rootless ElleKit injection and sideloaded YouTube builds.
+- Replace eligible titles with community-submitted DeArrow alternatives
+- Replace eligible thumbnails through the dedicated DeArrow thumbnail service
+- Apply branding across feeds, search, related videos, playlists, channel listings, playback, and Shorts
+- Preserve YouTube branding when a response is unavailable, invalid, or stale
+- Configure title and thumbnail behavior from a native YouTube settings page
+- Support rootless ElleKit packages and sideloaded YouTube injection
 
 ## Compatibility
 
-| Component | Supported baseline | Latest verified |
-| --- | --- | --- |
-| iOS / iPadOS | 15.0+ | 27.0 |
-| YouTube | 19.42.1 | 21.36.6 |
-
-The latest verified YouTube version is the App Store release available on September 12, 2026. The tweak leaves unsupported or unknown renderer paths untouched.
-
-## Download
-
-[Install from the apt repository](https://repo.adriancastro.dev) · [Download the latest release](https://github.com/castdrian/DeArrow/releases/latest)
+![DeArrow compatibility](.github/compatibility.svg)
 
 ## Installation
 
-Install the rootless package from a compatible package manager or inject `DeArrow.dylib` into a sideloaded YouTube build. Restart YouTube after installation.
+Install the rootless package from a compatible package manager, or inject `DeArrow.dylib` into a sideloaded YouTube build. Restart YouTube after installation.
 
 ## Building
 
@@ -44,6 +42,14 @@ gmake package FINALPACKAGE=1
 
 The package is written to `packages/`.
 
+## Privacy and network behavior
+
+DeArrow does not intercept YouTube networking or collect telemetry. It contacts the public DeArrow and SponsorBlock branding services by video ID, caches successful and negative responses, and silently keeps YouTube’s original title or thumbnail when a request fails.
+
 ## Attribution
 
-This project is a maintained fork of [pixelomer/DeArrow-iOS](https://github.com/pixelomer/DeArrow-iOS). DeArrow’s public branding data is provided by [DeArrow](https://dearrow.ajay.app/).
+This project is a maintained fork of [pixelomer/DeArrow-iOS](https://github.com/pixelomer/DeArrow-iOS). Community branding data is provided by [DeArrow](https://dearrow.ajay.app/) and [SponsorBlock](https://sponsor.ajay.app/).
+
+## Contributors
+
+[![Contributors](https://contrib.rocks/image?repo=castdrian/DeArrow)](https://github.com/castdrian/DeArrow/graphs/contributors)

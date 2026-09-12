@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="358" viewBox="0 0 1040 358" role="img" aria-labelledby="title description">
+<title id="title">Compatibility</title>
+<desc id="description">DeArrow compatibility information and status legend.</desc>
+<rect width="100%" height="100%" rx="26" fill="#121316" stroke="#2a2d33" stroke-width="2"/>
+<line x1="40" y1="111" x2="502" y2="111" stroke="#2a2d33" stroke-width="1"/>
+<circle cx="47" cy="65" r="5" fill="#8e8e93"/>
+<text x="64" y="63" fill="#f5f5f7" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="15" font-weight="600">iOS / iPadOS</text>
+<text x="64" y="88" fill="#98989f" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="13">15.0 and newer</text>
+<rect x="390" y="50" width="104" height="28" rx="14" fill="#292a2e"/>
+<text x="442" y="68" text-anchor="middle" fill="#8e8e93" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="11" font-weight="600">Untested</text>
+<line x1="40" y1="185" x2="502" y2="185" stroke="#2a2d33" stroke-width="1"/>
+<circle cx="47" cy="139" r="5" fill="#8e8e93"/>
+<text x="64" y="137" fill="#f5f5f7" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="15" font-weight="600">YouTube</text>
+<text x="64" y="162" fill="#98989f" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="13">19.42.1 and newer</text>
+<rect x="390" y="124" width="104" height="28" rx="14" fill="#292a2e"/>
+<text x="442" y="142" text-anchor="middle" fill="#8e8e93" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="11" font-weight="600">Untested</text>
+<line x1="538" y1="111" x2="1000" y2="111" stroke="#2a2d33" stroke-width="1"/>
+<circle cx="545" cy="65" r="5" fill="#8e8e93"/>
+<text x="562" y="63" fill="#f5f5f7" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="15" font-weight="600">ElleKit</text>
+<text x="562" y="88" fill="#98989f" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="13">Rootless injection</text>
+<rect x="888" y="50" width="104" height="28" rx="14" fill="#292a2e"/>
+<text x="940" y="68" text-anchor="middle" fill="#8e8e93" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="11" font-weight="600">Untested</text>
+<line x1="538" y1="185" x2="1000" y2="185" stroke="#2a2d33" stroke-width="1"/>
+<circle cx="545" cy="139" r="5" fill="#8e8e93"/>
+<text x="562" y="137" fill="#f5f5f7" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="15" font-weight="600">Sideloaded builds</text>
+<text x="562" y="162" fill="#98989f" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="13">Injected dylib</text>
+<rect x="888" y="124" width="104" height="28" rx="14" fill="#292a2e"/>
+<text x="940" y="142" text-anchor="middle" fill="#8e8e93" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="11" font-weight="600">Untested</text>
+<line x1="40" y1="200" x2="1000" y2="200" stroke="#2a2d33" stroke-width="1"/>
+<text x="40" y="224" fill="#98989f" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="11" font-weight="600" letter-spacing="1">STATUS</text>
+<circle cx="47" cy="250" r="5" fill="#30d158"/>
+<text x="60" y="255" fill="#f5f5f7" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="13" font-weight="600">Verified</text>
+<text x="40" y="276" fill="#98989f" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="11">Tested in the current</text>
+<text x="40" y="292" fill="#98989f" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="11">environment</text>
+<circle cx="287" cy="250" r="5" fill="#ffd60a"/>
+<text x="300" y="255" fill="#f5f5f7" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="13" font-weight="600">Partial</text>
+<text x="280" y="276" fill="#98989f" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="11">Works with known</text>
+<text x="280" y="292" fill="#98989f" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="11">limitations</text>
+<circle cx="527" cy="250" r="5" fill="#8e8e93"/>
+<text x="540" y="255" fill="#f5f5f7" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="13" font-weight="600">Untested</text>
+<text x="520" y="276" fill="#98989f" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="11">No current verification</text>
+<circle cx="767" cy="250" r="5" fill="#ff453a"/>
+<text x="780" y="255" fill="#f5f5f7" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="13" font-weight="600">Unsupported</text>
+<text x="760" y="276" fill="#98989f" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="11">Known not to work</text>
+</svg>

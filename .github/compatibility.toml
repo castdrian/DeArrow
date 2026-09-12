@@ -1,0 +1,39 @@
+[[rows]]
+label = "iOS / iPadOS"
+value = "15.0 and newer"
+status = "untested"
+
+[[rows]]
+label = "YouTube"
+value = "19.42.1 and newer"
+status = "untested"
+
+[[rows]]
+label = "ElleKit"
+value = "Rootless injection"
+status = "untested"
+
+[[rows]]
+label = "Sideloaded builds"
+value = "Injected dylib"
+status = "untested"
+
+[[legend]]
+status = "verified"
+label = "Verified"
+description = "Tested in the current environment"
+
+[[legend]]
+status = "partial"
+label = "Partial"
+description = "Works with known limitations"
+
+[[legend]]
+status = "untested"
+label = "Untested"
+description = "No current verification"
+
+[[legend]]
+status = "unsupported"
+label = "Unsupported"
+description = "Known not to work"

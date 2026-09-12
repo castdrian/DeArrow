@@ -15,6 +15,8 @@
 !headers/**
 !layout/
 !layout/**
+!assets/
+!assets/**
 !scripts/
 !scripts/**
 !tests/
