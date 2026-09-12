@@ -326,7 +326,7 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
     return cell;
 }
 
-- (void)donateTapped:(UIButton *)sender {
+- (void)donateTapped:(__unused UIButton *)sender {
     [[UIApplication sharedApplication] openURL:[NSURL URLWithString:@"https://ko-fi.com/castdrian"] options:@{} completionHandler:nil];
 }
 
