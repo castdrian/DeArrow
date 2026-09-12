@@ -4,6 +4,7 @@
 
 ### Features
 
+- polish native DeArrow settings (734d3fa)
 - add native settings and source layout (d0efb96)
 - rebuild DeArrow integration (1b55e1e)
 
@@ -16,6 +17,7 @@
 
 ### Documentation
 
+- refresh changelog data (aaee0a0)
 - align DeArrow project presentation (8794956)
 - align DeArrow project presentation (f230e0a)
 - document DeArrow compatibility and usage (4a9ac3f)
