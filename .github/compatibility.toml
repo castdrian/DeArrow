@@ -1,11 +1,11 @@
 [[rows]]
 label = "iOS / iPadOS"
-value = "15.0 and newer"
+value = "27.0 device; 15.0+ minimum"
 status = "untested"
 
 [[rows]]
 label = "YouTube"
-value = "19.42.1 and newer"
+value = "21.35.3 device; 19.42.1 baseline"
 status = "untested"
 
 [[rows]]
