@@ -14,6 +14,3 @@ DEARROW_VERSION := $(shell sed -n 's/^Version: //p' control)
 DeArrow_CFLAGS = -Wno-deprecated-declarations -Wno-nullability-completeness -Wno-objc-method-access -fobjc-arc -Iheaders -DPACKAGE_VERSION='@"$(DEARROW_VERSION)"'
 
 include $(THEOS_MAKE_PATH)/tweak.mk
-
-before-all::
-	$(ECHO_NOTHING)go run scripts/generate_changelog.go --version "$(DEARROW_VERSION)"$(ECHO_END)
