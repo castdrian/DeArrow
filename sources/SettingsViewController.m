@@ -78,6 +78,7 @@ static NSAttributedString *RenderedDeArrowChangelog(void) {
         initWithBarButtonSystemItem:UIBarButtonSystemItemDone
                              target:self
                              action:@selector(close)];
+    self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeNever;
     self.textView = [UITextView new];
     self.textView.translatesAutoresizingMaskIntoConstraints = NO;
     self.textView.editable = NO;
@@ -100,6 +101,25 @@ static NSAttributedString *RenderedDeArrowChangelog(void) {
 }
 
 @end
+
+static UIView *DeArrowChangelogAccessory(void) {
+    UIView *container = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, 72.0, 28.0)];
+    UILabel *badge = [[UILabel alloc] initWithFrame:CGRectMake(0.0, 3.0, 38.0, 22.0)];
+    badge.text = DeArrowLocalized(@"NEW", @"NEW");
+    badge.textColor = UIColor.whiteColor;
+    badge.backgroundColor = UIColor.systemRedColor;
+    badge.font = [UIFont systemFontOfSize:11.0 weight:UIFontWeightBold];
+    badge.textAlignment = NSTextAlignmentCenter;
+    badge.layer.cornerRadius = 8.0;
+    badge.clipsToBounds = YES;
+    UIImageView *chevron = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"chevron.right"]];
+    chevron.frame = CGRectMake(52.0, 7.0, 14.0, 14.0);
+    chevron.tintColor = UIColor.tertiaryLabelColor;
+    chevron.contentMode = UIViewContentModeScaleAspectFit;
+    [container addSubview:badge];
+    [container addSubview:chevron];
+    return container;
+}
 
 typedef NS_ENUM(NSInteger, DeArrowSettingsSection) {
     DeArrowSettingsSectionSupport,
@@ -128,6 +148,10 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
     return self;
 }
 
+- (UIInterfaceOrientationMask)supportedInterfaceOrientations {
+    return UIInterfaceOrientationMaskAll;
+}
+
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.view.backgroundColor = UIColor.systemBackgroundColor;
@@ -140,10 +164,20 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
     [self.enabledSwitch addTarget:self action:@selector(enabledChanged:) forControlEvents:UIControlEventValueChanged];
     [self.thumbnailSwitch addTarget:self action:@selector(thumbnailsChanged:) forControlEvents:UIControlEventValueChanged];
     [self refreshControls];
+    if (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad) {
+        self.navigationItem.hidesBackButton = YES;
+        self.navigationItem.leftBarButtonItem = nil;
+        self.navigationItem.backBarButtonItem = nil;
+    }
 }
 
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
+    if (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad) {
+        self.navigationItem.hidesBackButton = YES;
+        self.navigationItem.leftBarButtonItem = nil;
+        self.navigationItem.backBarButtonItem = nil;
+    }
     [self refreshControls];
 }
 
@@ -186,19 +220,6 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
     return DeArrowLocalized(@"ABOUT", @"About");
 }
 
-- (UILabel *)newBadge {
-    UILabel *badge = [UILabel new];
-    badge.text = DeArrowLocalized(@"NEW", @"NEW");
-    badge.textColor = UIColor.whiteColor;
-    badge.backgroundColor = UIColor.systemRedColor;
-    badge.font = [UIFont systemFontOfSize:11.0 weight:UIFontWeightBold];
-    badge.textAlignment = NSTextAlignmentCenter;
-    badge.layer.cornerRadius = 7.0;
-    badge.clipsToBounds = YES;
-    badge.frame = CGRectMake(0.0, 0.0, 36.0, 22.0);
-    return badge;
-}
-
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     static NSString *identifier = @"DeArrowSettingsCell";
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:identifier];
@@ -234,10 +255,11 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
         cell.selectionStyle = UITableViewCellSelectionStyleNone;
     } else if (indexPath.row == 1) {
         cell.textLabel.text = DeArrowLocalized(@"WHATS_NEW", @"What’s New");
-        cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
         DeArrowPreferences *preferences = [DeArrowPreferences sharedPreferences];
         if (![preferences.lastViewedChangelogVersion isEqualToString:preferences.installedVersion])
-            cell.accessoryView = [self newBadge];
+            cell.accessoryView = DeArrowChangelogAccessory();
+        else
+            cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
     } else {
         cell.textLabel.text = DeArrowLocalized(@"GITHUB", @"DeArrow on GitHub");
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
@@ -276,11 +298,7 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
     [[DeArrowPreferences sharedPreferences] markChangelogSeen];
     DeArrowChangelogViewController *changelog = [DeArrowChangelogViewController new];
     UINavigationController *navigationController = [[UINavigationController alloc] initWithRootViewController:changelog];
-    navigationController.modalPresentationStyle = UIModalPresentationPageSheet;
-    if (@available(iOS 15.0, *)) {
-        navigationController.sheetPresentationController.detents = @[UISheetPresentationControllerDetent.largeDetent];
-        navigationController.sheetPresentationController.prefersGrabberVisible = YES;
-    }
+    navigationController.modalPresentationStyle = UIModalPresentationFullScreen;
     [self.tableView reloadData];
     [self presentViewController:navigationController animated:YES completion:nil];
 }

@@ -13,14 +13,28 @@ static void *SettingsManagerControllerKey = &SettingsManagerControllerKey;
 static void *SettingsControllerManagerKey = &SettingsControllerManagerKey;
 static void *SettingsNavigationTokenKey = &SettingsNavigationTokenKey;
 
+static id SettingsIvarObject(id object, const char *name);
+
 static id SettingsObjectValue(id object, NSString *key) {
     if (!object || key.length == 0)
         return nil;
     @try {
-        return [object valueForKey:key];
+        id value = [object valueForKey:key];
+        if (value)
+            return value;
     } @catch (__unused NSException *exception) {
-        return nil;
     }
+    return SettingsIvarObject(object, key.UTF8String);
+}
+
+static id SettingsIvarObject(id object, const char *name) {
+    if (!object || !name)
+        return nil;
+    Ivar ivar = class_getInstanceVariable(object_getClass(object), name);
+    const char *encoding = ivar ? ivar_getTypeEncoding(ivar) : NULL;
+    if (!encoding || encoding[0] != '@')
+        return nil;
+    return object_getIvar(object, ivar);
 }
 
 static Class SettingsViewControllerClass(void) {
@@ -164,8 +178,8 @@ static YTSettingsSectionItemManager *SettingsManagerForController(YTSettingsView
     if (!manager) {
         Class managerClass = SettingsManagerClass();
         for (NSString *key in @[@"_sectionItemManager", @"sectionItemManager"]) {
-            id candidate = SettingsObjectValue(controller, key);
-            if (!managerClass || [candidate isKindOfClass:managerClass]) {
+            id candidate = SettingsObjectValue(controller, key) ?: SettingsIvarObject(controller, key.UTF8String);
+            if (candidate && (!managerClass || [candidate isKindOfClass:managerClass])) {
                 manager = candidate;
                 if (manager)
                     break;
@@ -201,6 +215,15 @@ static NSNumber *SettingsCategoryValue(id object, NSUInteger depth) {
         NSNumber *value = SettingsCategoryValue(SettingsObjectValue(object, key), depth + 1);
         if (value)
             return value;
+    }
+    NSString *description = [object description];
+    NSRange marker = [description rangeOfString:@"category_id:"];
+    if (marker.location != NSNotFound) {
+        NSString *suffix = [description substringFromIndex:NSMaxRange(marker)];
+        NSScanner *scanner = [NSScanner scannerWithString:suffix];
+        unsigned long long category = 0;
+        if ([scanner scanUnsignedLongLong:&category])
+            return @(category);
     }
     return nil;
 }
@@ -252,40 +275,19 @@ static BOOL ConsumeNavigationToken(YTSettingsViewController *controller) {
     return YES;
 }
 
-static YTSettingsSectionItem *MakeSectionItem(YTSettingsViewController *controller) {
-    Class itemClass = NSClassFromString(@"YTSettingsSectionItem");
-    if (!itemClass)
-        return nil;
-    __weak YTSettingsViewController *weakController = controller;
-    BOOL (^selectBlock)(YTSettingsCell *, NSUInteger) = ^BOOL(__unused YTSettingsCell *cell,
-                                                               __unused NSUInteger index) {
-        YTSettingsViewController *strongController = weakController;
-        return strongController ? PushCustomSettings(strongController, YES) : NO;
-    };
-    SEL compactSelector = @selector(itemWithTitle:accessibilityIdentifier:detailTextBlock:selectBlock:);
-    if ([itemClass respondsToSelector:compactSelector]) {
-        id (*message)(id, SEL, NSString *, NSString *, id, id) = (id (*)(id, SEL, NSString *, NSString *, id, id))objc_msgSend;
-        return message(itemClass, compactSelector, @"DeArrow", @"dev.adrian.dearrow.settings", nil, selectBlock);
-    }
-    SEL detailedSelector = @selector(itemWithTitle:titleDescription:accessibilityIdentifier:detailTextBlock:selectBlock:);
-    if ([itemClass respondsToSelector:detailedSelector]) {
-        id (*message)(id, SEL, NSString *, NSString *, NSString *, id, id) = (id (*)(id, SEL, NSString *, NSString *, NSString *, id, id))objc_msgSend;
-        return message(itemClass, detailedSelector, @"DeArrow", nil, @"dev.adrian.dearrow.settings", nil, selectBlock);
-    }
-    return nil;
-}
-
 static void ConfigureSettingsSection(YTSettingsSectionItemManager *manager) {
     YTSettingsViewController *controller = SettingsControllerForManager(manager);
-    YTSettingsSectionItem *item = MakeSectionItem(controller);
-    if (!controller || !item)
+    if (!controller)
         return;
     AssociateSettingsManager(controller, manager);
-    NSMutableArray *items = [NSMutableArray arrayWithObject:item];
+    NSMutableArray *items = [NSMutableArray array];
+    YTIIcon *icon = [NSClassFromString(@"YTIIcon") new];
+    if ([icon respondsToSelector:@selector(setIconType:)])
+        icon.iconType = 193;
     SEL modernSelector = @selector(setSectionItems:forCategory:title:icon:titleDescription:headerHidden:);
     if ([controller respondsToSelector:modernSelector]) {
         void (*message)(id, SEL, NSMutableArray *, NSInteger, NSString *, YTIIcon *, NSString *, BOOL) = (void (*)(id, SEL, NSMutableArray *, NSInteger, NSString *, YTIIcon *, NSString *, BOOL))objc_msgSend;
-        message(controller, modernSelector, items, DeArrowSettingsCategory, @"DeArrow", nil, nil, NO);
+        message(controller, modernSelector, items, DeArrowSettingsCategory, @"DeArrow", icon, nil, NO);
         return;
     }
     SEL legacySelector = @selector(setSectionItems:forCategory:title:titleDescription:headerHidden:);
@@ -314,30 +316,6 @@ static void InstallClassHook(Class targetClass, SEL selector, id (^builder)(IMP,
     Method method = class_getInstanceMethod(metaClass, selector);
     IMP original = method_getImplementation(method);
     method_setImplementation(method, imp_implementationWithBlock(builder(original, selector)));
-}
-
-static void InstallTweakCategoryHook(Class groupClass) {
-    SEL selector = @selector(tweaks);
-    Class metaClass = object_getClass(groupClass);
-    Method method = class_getInstanceMethod(metaClass, selector);
-    if (method) {
-        IMP original = method_getImplementation(method);
-        id replacement = ^id(id object, SEL command) {
-            NSMutableArray *categories = [NSMutableArray array];
-            NSArray *existing = ((id (*)(id, SEL))original)(object, command);
-            if ([existing isKindOfClass:[NSArray class]])
-                [categories addObjectsFromArray:existing];
-            if (![categories containsObject:@(DeArrowSettingsCategory)])
-                [categories addObject:@(DeArrowSettingsCategory)];
-            return categories;
-        };
-        method_setImplementation(method, imp_implementationWithBlock(replacement));
-        return;
-    }
-    id replacement = ^id(__unused id object, __unused SEL command) {
-        return [NSMutableArray arrayWithObject:@(DeArrowSettingsCategory)];
-    };
-    class_addMethod(metaClass, selector, imp_implementationWithBlock(replacement), "@@:");
 }
 
 static void InstallSettingsNavigationHooks(Class targetClass) {
@@ -385,10 +363,13 @@ static void InstallSettingsNavigationHooks(Class targetClass) {
             ((void (*)(id, SEL, UIViewController *, id))original)(object, command, custom ?: viewController, sender);
         };
     });
+}
+
+static void InstallNavigationStackHooks(Class targetClass) {
+    InstallSettingsNavigationHooks(targetClass);
     InstallInstanceHook(targetClass, @selector(setViewControllers:), ^id(IMP original, SEL selector) {
         return ^(id object, SEL command, NSArray<UIViewController *> *viewControllers) {
-            UINavigationController *navigationController = [object isKindOfClass:[UINavigationController class]] ? object : nil;
-            YTSettingsViewController *settingsController = navigationController ? SettingsControllerInViewController(navigationController, 0) : nil;
+            YTSettingsViewController *settingsController = SettingsControllerInViewController(object, 0);
             NSMutableArray *replacement = [viewControllers mutableCopy];
             if (settingsController) {
                 NSUInteger settingsIndex = [replacement indexOfObjectIdenticalTo:settingsController];
@@ -400,8 +381,7 @@ static void InstallSettingsNavigationHooks(Class targetClass) {
     });
     InstallInstanceHook(targetClass, @selector(setViewControllers:animated:), ^id(IMP original, SEL selector) {
         return ^(id object, SEL command, NSArray<UIViewController *> *viewControllers, BOOL animated) {
-            UINavigationController *navigationController = [object isKindOfClass:[UINavigationController class]] ? object : nil;
-            YTSettingsViewController *settingsController = navigationController ? SettingsControllerInViewController(navigationController, 0) : nil;
+            YTSettingsViewController *settingsController = SettingsControllerInViewController(object, 0);
             NSMutableArray *replacement = [viewControllers mutableCopy];
             if (settingsController) {
                 NSUInteger settingsIndex = [replacement indexOfObjectIdenticalTo:settingsController];
@@ -413,10 +393,64 @@ static void InstallSettingsNavigationHooks(Class targetClass) {
     });
 }
 
+static BOOL SettingsCandidateInHierarchy(UIViewController *controller, NSUInteger depth) {
+    if (!controller || depth > 8)
+        return NO;
+    if (IsDeArrowSettingsCandidate(controller))
+        return YES;
+    if (controller.presentedViewController &&
+        SettingsCandidateInHierarchy(controller.presentedViewController, depth + 1))
+        return YES;
+    if ([controller isKindOfClass:[UINavigationController class]]) {
+        for (UIViewController *child in ((UINavigationController *)controller).viewControllers) {
+            if (SettingsCandidateInHierarchy(child, depth + 1))
+                return YES;
+        }
+    }
+    if ([controller isKindOfClass:[UISplitViewController class]]) {
+        for (UIViewController *child in ((UISplitViewController *)controller).viewControllers) {
+            if (SettingsCandidateInHierarchy(child, depth + 1))
+                return YES;
+        }
+    }
+    for (UIViewController *child in controller.childViewControllers) {
+        if (SettingsCandidateInHierarchy(child, depth + 1))
+            return YES;
+    }
+    return NO;
+}
+
+static UIViewController *CreateCustomSettingsSplitDestination(YTSettingsViewController *settingsController) {
+    UIViewController *custom = CreateCustomSettingsDestination(settingsController);
+    if (!custom)
+        return nil;
+    UINavigationController *navigationController = [[UINavigationController alloc] initWithRootViewController:custom];
+    navigationController.navigationBarHidden = NO;
+    YTSettingsSectionItemManager *manager = SettingsManagerForController(settingsController);
+    if (manager) {
+        objc_setAssociatedObject(custom, SettingsControllerManagerKey, manager, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        objc_setAssociatedObject(navigationController, SettingsControllerManagerKey, manager, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    return navigationController;
+}
+
+static void InstallSplitViewSettingsHook(Class targetClass) {
+    InstallInstanceHook(targetClass, @selector(setSecondViewController:), ^id(IMP original, SEL selector) {
+        return ^(id object, SEL command, UIViewController *viewController) {
+            YTSettingsViewController *settingsController = SettingsControllerInViewController(SettingsObjectValue(object, @"viewController"), 0);
+            if (!settingsController)
+                settingsController = SettingsControllerInViewController(object, 0);
+            UIViewController *replacement = nil;
+            if (settingsController && SettingsCandidateInHierarchy(viewController, 0))
+                replacement = CreateCustomSettingsSplitDestination(settingsController);
+            ((void (*)(id, SEL, UIViewController *))original)(object, command, replacement ?: viewController);
+        };
+    });
+}
+
 void DeArrowInstallSettingsIntegration(void) {
     Class groupClass = NSClassFromString(@"YTSettingsGroupData");
     if (groupClass) {
-        InstallTweakCategoryHook(groupClass);
         InstallInstanceHook(groupClass, @selector(orderedCategories), ^id(IMP original, SEL selector) {
             return ^id(id object, SEL command) {
                 if ([object respondsToSelector:@selector(type)] && [(YTSettingsGroupData *)object type] == DeArrowSettingsGroup)
@@ -518,8 +552,11 @@ void DeArrowInstallSettingsIntegration(void) {
     }
     Class navigationClass = NSClassFromString(@"UINavigationController");
     if (navigationClass)
-        InstallSettingsNavigationHooks(navigationClass);
+        InstallNavigationStackHooks(navigationClass);
     Class youtubeNavigationClass = NSClassFromString(@"YTNavigationController");
     if (youtubeNavigationClass)
-        InstallSettingsNavigationHooks(youtubeNavigationClass);
+        InstallNavigationStackHooks(youtubeNavigationClass);
+    Class splitViewClass = NSClassFromString(@"YTWrapperSplitViewController");
+    if (splitViewClass)
+        InstallSplitViewSettingsHook(splitViewClass);
 }

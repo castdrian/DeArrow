@@ -1,6 +1,7 @@
 #import "IntegrationSupport.h"
 
 #import <UIKit/UIKit.h>
+#import <objc/message.h>
 #import <objc/runtime.h>
 
 #import "BrandingClient.h"
@@ -9,10 +10,6 @@
 #import "ThumbnailIntegration.h"
 
 @implementation BrandingBinding
-@end
-
-@interface NSObject (DeArrowViewControllerLookup)
-- (UIViewController *)_viewControllerForAncestor;
 @end
 
 static void *BrandingBindingKey = &BrandingBindingKey;
@@ -54,10 +51,12 @@ void DeArrowAssociateMetadata(id object, VideoMetadataRecord *metadata) {
     if (!object || !metadata.videoID.length)
         return;
     BrandingBinding *binding = DeArrowBindingForObject(object, YES);
-    if ([binding.metadata.videoID isEqualToString:metadata.videoID] &&
-        (!metadata.title.length || [binding.metadata.title isEqualToString:metadata.title])) {
-        if (!binding.metadata.title.length && metadata.title.length)
-            binding.metadata = metadata;
+    if ([binding.metadata.videoID isEqualToString:metadata.videoID]) {
+        NSString *title = metadata.title.length ? metadata.title : binding.metadata.title;
+        NSString *channel = metadata.channel.length ? metadata.channel : binding.metadata.channel;
+        if (![binding.metadata.title isEqualToString:title] || ![binding.metadata.channel isEqualToString:channel])
+            binding.metadata = [[VideoMetadataRecord alloc] initWithVideoID:metadata.videoID title:title channel:channel];
+        binding.metadataAttempted = YES;
         return;
     }
     [binding.brandingToken cancel];
@@ -68,6 +67,12 @@ void DeArrowAssociateMetadata(id object, VideoMetadataRecord *metadata) {
     binding.thumbnailToken = nil;
     binding.originalTitle = nil;
     binding.originalImage = nil;
+    binding.brandingResolved = NO;
+    binding.thumbnailBrandingResolved = NO;
+    binding.thumbnailResolved = NO;
+    binding.brandingRetryTime = 0.0;
+    binding.thumbnailBrandingRetryTime = 0.0;
+    binding.thumbnailRetryTime = 0.0;
     binding.relatedViewsBound = NO;
     binding.generation += 1;
     binding.metadata = [metadata copy];
@@ -123,6 +128,10 @@ VideoMetadataRecord *DeArrowMetadataFromParents(id object) {
     VideoMetadataRecord *metadata = DeArrowStoredMetadataForObject(object);
     if (metadata)
         return metadata;
+    BrandingBinding *binding = DeArrowBindingForObject(object, YES);
+    if (binding.metadataAttempted)
+        return nil;
+    binding.metadataAttempted = YES;
     id current = object;
     NSString *className = NSStringFromClass([object class]);
     BOOL nodeObject = [className containsString:@"Node"];
@@ -139,8 +148,8 @@ VideoMetadataRecord *DeArrowMetadataFromParents(id object) {
             return metadata;
         current = parent;
     }
-    if ([object respondsToSelector:@selector(_viewControllerForAncestor)]) {
-        UIViewController *viewController = [object _viewControllerForAncestor];
+    if ([object respondsToSelector:NSSelectorFromString(@"_viewControllerForAncestor")]) {
+        UIViewController *viewController = ((id (*)(id, SEL))objc_msgSend)(object, NSSelectorFromString(@"_viewControllerForAncestor"));
         metadata = DeArrowStoredMetadataForObject(viewController);
         if (metadata)
             return metadata;
@@ -157,6 +166,12 @@ void DeArrowCancelBinding(id object) {
     binding.brandingToken = nil;
     binding.thumbnailBrandingToken = nil;
     binding.thumbnailToken = nil;
+    binding.brandingResolved = NO;
+    binding.thumbnailBrandingResolved = NO;
+    binding.thumbnailResolved = NO;
+    binding.brandingRetryTime = 0.0;
+    binding.thumbnailBrandingRetryTime = 0.0;
+    binding.thumbnailRetryTime = 0.0;
     binding.generation += 1;
     binding.relatedViewsBound = NO;
 }

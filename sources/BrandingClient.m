@@ -77,7 +77,8 @@ static BOOL ValidTitleEntry(NSDictionary *entry) {
     if (![entry isKindOfClass:[NSDictionary class]] || [entry[@"original"] boolValue])
         return NO;
     NSString *title = entry[@"title"];
-    if (![title isKindOfClass:[NSString class]] || title.length == 0)
+    if (![title isKindOfClass:[NSString class]] ||
+        [title stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]].length == 0)
         return NO;
     id votes = entry[@"votes"];
     return [entry[@"locked"] boolValue] || ![votes respondsToSelector:@selector(integerValue)] || [votes integerValue] >= 0;
@@ -99,6 +100,16 @@ static NSURL *ThumbnailURL(NSString *videoID) {
     return components.URL;
 }
 
+static NSURLRequest *BrandingRequest(NSURL *URL, NSString *accept, NSTimeInterval timeout) {
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:URL
+                                                              cachePolicy:NSURLRequestUseProtocolCachePolicy
+                                                          timeoutInterval:timeout];
+    [request setValue:accept forHTTPHeaderField:@"Accept"];
+    [request setValue:@"DeArrow" forHTTPHeaderField:@"User-Agent"];
+    [request setValue:@"DeArrow" forHTTPHeaderField:@"x-client-name"];
+    return request;
+}
+
 @implementation BrandingClient
 
 + (instancetype)sharedClient {
@@ -116,7 +127,6 @@ static NSURL *ThumbnailURL(NSString *videoID) {
         NSURLSessionConfiguration *configuration = [NSURLSessionConfiguration ephemeralSessionConfiguration];
         configuration.timeoutIntervalForRequest = 8.0;
         configuration.timeoutIntervalForResource = 12.0;
-        configuration.HTTPAdditionalHeaders = @{ @"Accept": @"application/json" };
         _session = [NSURLSession sessionWithConfiguration:configuration];
         _stateQueue = dispatch_queue_create("dev.adrian.dearrow.branding", DISPATCH_QUEUE_SERIAL);
         _cache = [NSCache new];
@@ -207,9 +217,7 @@ static NSURL *ThumbnailURL(NSString *videoID) {
 
         NSURLComponents *components = [NSURLComponents componentsWithString:@"https://sponsor.ajay.app/api/branding"];
         components.queryItems = @[[NSURLQueryItem queryItemWithName:@"videoID" value:validID]];
-        NSURLRequest *request = [NSURLRequest requestWithURL:components.URL
-                                                  cachePolicy:NSURLRequestUseProtocolCachePolicy
-                                              timeoutInterval:8.0];
+        NSURLRequest *request = BrandingRequest(components.URL, @"application/json", 8.0);
         NSURLSessionDataTask *task = [self.session dataTaskWithRequest:request
                                                        completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
             [self finishVideoID:validID data:data response:response error:error];
@@ -249,7 +257,9 @@ static NSURL *ThumbnailURL(NSString *videoID) {
                 NSDictionary *titleEntry = FirstValidTitle(root[@"titles"]);
                 NSArray *thumbnails = root[@"thumbnails"];
                 BOOL hasThumbnail = [thumbnails isKindOfClass:[NSArray class]] && thumbnails.count > 0;
-                NSString *title = [titleEntry[@"title"] isKindOfClass:[NSString class]] ? titleEntry[@"title"] : nil;
+                NSString *title = [titleEntry[@"title"] isKindOfClass:[NSString class]]
+                    ? [titleEntry[@"title"] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]]
+                    : nil;
                 if (title || hasThumbnail)
                     record = [[BrandingRecord alloc] initWithVideoID:videoID
                                                                title:title
@@ -330,9 +340,7 @@ static NSURL *ThumbnailURL(NSString *videoID) {
         if (self.thumbnailTasks[validID])
             return;
         NSURL *URL = ThumbnailURL(validID);
-        NSURLRequest *request = [NSURLRequest requestWithURL:URL
-                                                  cachePolicy:NSURLRequestUseProtocolCachePolicy
-                                              timeoutInterval:12.0];
+        NSURLRequest *request = BrandingRequest(URL, @"image/*", 12.0);
         NSURLSessionDataTask *task = [self.session dataTaskWithRequest:request
                                                        completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
             [self finishThumbnailVideoID:validID data:data response:response error:error];

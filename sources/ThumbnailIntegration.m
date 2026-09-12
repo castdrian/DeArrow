@@ -23,7 +23,8 @@ static void ApplyThumbnailToObject(id object, BOOL animated) {
     if (!binding.metadata || ![binding.metadata.videoID isEqualToString:metadata.videoID])
         DeArrowAssociateMetadata(object, metadata);
     binding = DeArrowBindingForObject(object, YES);
-    if (binding.thumbnailBrandingToken)
+    if (binding.thumbnailBrandingToken || binding.thumbnailBrandingResolved ||
+        binding.thumbnailBrandingRetryTime > [NSDate date].timeIntervalSince1970)
         return;
     NSString *videoID = metadata.videoID;
     NSUInteger generation = binding.generation;
@@ -34,22 +35,31 @@ static void ApplyThumbnailToObject(id object, BOOL animated) {
         id strongObject = weakObject;
         BrandingBinding *strongBinding = weakBinding;
         if (!strongObject || !strongBinding || strongBinding.generation != generation ||
-            ![strongBinding.metadata.videoID isEqualToString:videoID] || !record.thumbnailURL)
+            ![strongBinding.metadata.videoID isEqualToString:videoID])
             return;
         strongBinding.thumbnailBrandingToken = nil;
+        strongBinding.thumbnailBrandingResolved = error == nil;
+        strongBinding.thumbnailBrandingRetryTime = error ? [NSDate date].timeIntervalSince1970 + 10.0 : 0.0;
+        if (!record.thumbnailURL)
+            return;
         if (![DeArrowPreferences sharedPreferences].isEnabled ||
             ![DeArrowPreferences sharedPreferences].replaceThumbnails)
             return;
-        if (strongBinding.thumbnailToken)
+        if (strongBinding.thumbnailToken || strongBinding.thumbnailResolved ||
+            strongBinding.thumbnailRetryTime > [NSDate date].timeIntervalSince1970)
             return;
         strongBinding.thumbnailToken = [[BrandingClient sharedClient] requestThumbnailForVideoID:videoID
                                                                                         completion:^(UIImage *image, NSError *thumbnailError) {
             id currentObject = weakObject;
             BrandingBinding *currentBinding = weakBinding;
             if (!currentObject || !currentBinding || currentBinding.generation != generation ||
-                ![currentBinding.metadata.videoID isEqualToString:videoID] || !image)
+                ![currentBinding.metadata.videoID isEqualToString:videoID])
                 return;
             currentBinding.thumbnailToken = nil;
+            currentBinding.thumbnailResolved = image != nil && thumbnailError == nil;
+            currentBinding.thumbnailRetryTime = currentBinding.thumbnailResolved ? 0.0 : [NSDate date].timeIntervalSince1970 + 10.0;
+            if (!image)
+                return;
             if (currentBinding.applyingThumbnail)
                 return;
             currentBinding.applyingThumbnail = YES;
@@ -72,6 +82,14 @@ void DeArrowRefreshThumbnailObject(id object) {
         return;
     DeArrowPreferences *preferences = [DeArrowPreferences sharedPreferences];
     if (!preferences.isEnabled || !preferences.replaceThumbnails) {
+        [binding.thumbnailBrandingToken cancel];
+        [binding.thumbnailToken cancel];
+        binding.thumbnailBrandingToken = nil;
+        binding.thumbnailToken = nil;
+        binding.thumbnailBrandingResolved = NO;
+        binding.thumbnailResolved = NO;
+        binding.thumbnailBrandingRetryTime = 0.0;
+        binding.thumbnailRetryTime = 0.0;
         if (binding.originalImage && !binding.applyingThumbnail) {
             binding.applyingThumbnail = YES;
             if ([object respondsToSelector:@selector(setImage:animated:)])
@@ -91,7 +109,6 @@ static void BindRelatedLabels(UIView *imageView, NSString *videoID) {
     BrandingBinding *binding = DeArrowBindingForObject(imageView, YES);
     if (binding.relatedViewsBound)
         return;
-    BOOL foundLabel = NO;
     UIView *current = imageView;
     for (NSUInteger depth = 0; depth < 4; depth++) {
         UIView *parent = current.superview;
@@ -105,12 +122,11 @@ static void BindRelatedLabels(UIView *imageView, NSString *videoID) {
             if ([className containsString:@"formattedstringlabel"] ||
                 [identifier containsString:@"title"] || [identifier containsString:@"headline"]) {
                 DeArrowAssociateVideoID(candidate, videoID);
-                foundLabel = YES;
             }
         }
         current = parent;
     }
-    binding.relatedViewsBound = foundLabel;
+    binding.relatedViewsBound = YES;
 }
 
 static void InstallImageNodeSetter(Class targetClass) {
@@ -148,6 +164,9 @@ static void InstallImageLoadCallback(Class targetClass) {
         BrandingBinding *binding = DeArrowBindingForObject(node, YES);
         if (!binding.originalImage && image)
             binding.originalImage = image;
+        BrandingBinding *objectBinding = DeArrowBindingForObject(object, YES);
+        if (!objectBinding.originalImage && image)
+            objectBinding.originalImage = image;
         ApplyThumbnailToObject(object, NO);
     };
     method_setImplementation(method, imp_implementationWithBlock(replacement));

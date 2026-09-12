@@ -47,10 +47,18 @@ static id ExplicitValue(id object, NSString *key) {
 static NSString *TextFromValue(id value) {
     if ([value isKindOfClass:[NSString class]])
         return [value stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if ([value isKindOfClass:[NSAttributedString class]])
+        return [TextFromValue([(NSAttributedString *)value string]) copy];
     if ([value isKindOfClass:[NSDictionary class]]) {
+        NSString *text = TextFromValue(value[@"text"]);
+        if (text.length > 0)
+            return text;
         NSString *simpleText = TextFromValue(value[@"simpleText"]);
         if (simpleText.length > 0)
             return simpleText;
+        NSString *accessibility = TextFromValue(value[@"accessibility"]);
+        if (accessibility.length > 0)
+            return accessibility;
         NSArray *runs = value[@"runs"];
         if ([runs isKindOfClass:[NSArray class]]) {
             NSMutableString *text = [NSMutableString string];
@@ -61,6 +69,11 @@ static NSString *TextFromValue(id value) {
             }
             return text.length > 0 ? text : nil;
         }
+    }
+    for (NSString *key in @[@"text", @"string", @"plainText", @"simpleText", @"accessibilityLabel"]) {
+        NSString *text = TextFromValue(ExplicitValue(value, key));
+        if (text.length > 0)
+            return text;
     }
     return nil;
 }
@@ -83,6 +96,36 @@ static NSString *VideoIDFromValue(id value) {
         NSString *candidate = ValidVideoID(TextFromValue(ExplicitValue(value, key)));
         if (candidate)
             return candidate;
+    }
+    NSString *URLVideoID = nil;
+    NSString *text = TextFromValue(value);
+    NSURL *URL = [NSURL URLWithString:text ?: @""];
+    if (URL) {
+        NSURLComponents *components = [NSURLComponents componentsWithURL:URL resolvingAgainstBaseURL:NO];
+        for (NSURLQueryItem *item in components.queryItems) {
+            if ([item.name isEqualToString:@"v"] || [item.name isEqualToString:@"videoID"] || [item.name isEqualToString:@"video_id"]) {
+                URLVideoID = ValidVideoID(item.value);
+                if (URLVideoID)
+                    return URLVideoID;
+            }
+        }
+        NSArray *parts = [URL.path componentsSeparatedByString:@"/"];
+        for (NSUInteger index = 0; index + 1 < parts.count; index++) {
+            if ([parts[index] isEqualToString:@"vi"] || [parts[index] isEqualToString:@"vi_webp"] ||
+                [parts[index] isEqualToString:@"embed"] || [parts[index] isEqualToString:@"shorts"] ||
+                [parts[index] isEqualToString:@"live"]) {
+                URLVideoID = ValidVideoID(parts[index + 1]);
+                if (URLVideoID)
+                    return URLVideoID;
+            }
+        }
+        if ([URL.host.lowercaseString isEqualToString:@"youtu.be"]) {
+            for (NSInteger index = (NSInteger)parts.count - 1; index >= 0; index--) {
+                URLVideoID = ValidVideoID(parts[(NSUInteger)index]);
+                if (URLVideoID)
+                    return URLVideoID;
+            }
+        }
     }
     return nil;
 }
@@ -169,6 +212,7 @@ static VideoMetadataRecord *RecordFromContainers(NSArray *containers) {
         return nil;
     NSString *className = NSStringFromClass([node class]);
     if (![className containsString:@"YTVideoNode"] &&
+        ![className containsString:@"YTVideoWithContextNode"] &&
         ![className containsString:@"YTGridVideoNode"] &&
         ![className containsString:@"Short"] &&
         ![className containsString:@"Reel"] &&

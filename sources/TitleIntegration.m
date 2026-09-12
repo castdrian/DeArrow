@@ -39,7 +39,8 @@ static void RequestTitle(id object, BrandingBinding *binding) {
     if (!preferences.isEnabled || preferences.titlePreference != DeArrowTitlePreferenceDeArrow)
         return;
     NSString *videoID = binding.metadata.videoID;
-    if (!videoID.length || binding.brandingToken)
+    if (!videoID.length || binding.brandingToken || binding.brandingResolved ||
+        binding.brandingRetryTime > [NSDate date].timeIntervalSince1970)
         return;
     NSUInteger generation = binding.generation;
     __weak id weakObject = object;
@@ -51,6 +52,9 @@ static void RequestTitle(id object, BrandingBinding *binding) {
         if (!strongObject || !strongBinding || strongBinding.generation != generation ||
             ![strongBinding.metadata.videoID isEqualToString:videoID])
             return;
+        strongBinding.brandingToken = nil;
+        strongBinding.brandingResolved = error == nil;
+        strongBinding.brandingRetryTime = error ? [NSDate date].timeIntervalSince1970 + 10.0 : 0.0;
         if (![DeArrowPreferences sharedPreferences].isEnabled ||
             [DeArrowPreferences sharedPreferences].titlePreference != DeArrowTitlePreferenceDeArrow)
             return;
@@ -69,6 +73,12 @@ void DeArrowRefreshTitleObject(id object) {
     if (!metadata || !binding.originalTitle.length)
         return;
     DeArrowPreferences *preferences = [DeArrowPreferences sharedPreferences];
+    if (!preferences.isEnabled || preferences.titlePreference != DeArrowTitlePreferenceDeArrow) {
+        [binding.brandingToken cancel];
+        binding.brandingToken = nil;
+        binding.brandingResolved = NO;
+        binding.brandingRetryTime = 0.0;
+    }
     BrandingRecord *record = preferences.isEnabled && preferences.titlePreference == DeArrowTitlePreferenceDeArrow
         ? [[BrandingClient sharedClient] cachedBrandingForVideoID:metadata.videoID]
         : nil;
@@ -129,8 +139,13 @@ static void InstallPlayerVideoGetter(Class targetClass, SEL selector) {
     id replacement = ^id(id object, SEL command) {
         id result = ((id (*)(id, SEL))original)(object, command);
         VideoMetadataRecord *metadata = [VideoMetadataAdapters recordForObject:result];
-        if (!metadata && [result isKindOfClass:[NSString class]] && [VideoMetadataAdapters videoIDFromURL:result] == nil && [result length] == 11)
-            metadata = [[VideoMetadataRecord alloc] initWithVideoID:result title:nil channel:nil];
+        if (!metadata && [result isKindOfClass:[NSString class]]) {
+            NSString *videoID = [VideoMetadataAdapters videoIDFromURL:result];
+            if (!videoID.length && [(NSString *)result length] == 11)
+                videoID = (NSString *)result;
+            if (videoID.length)
+                metadata = [[VideoMetadataRecord alloc] initWithVideoID:videoID title:nil channel:nil];
+        }
         if (metadata)
             DeArrowAssociateMetadata(object, metadata);
         return result;

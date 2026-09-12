@@ -14,6 +14,12 @@
 @property(nonatomic, strong, nullable) UIImage *originalImage;
 @property(nonatomic) NSUInteger generation;
 @property(nonatomic) BOOL metadataAttempted;
+@property(nonatomic) BOOL brandingResolved;
+@property(nonatomic) BOOL thumbnailBrandingResolved;
+@property(nonatomic) BOOL thumbnailResolved;
+@property(nonatomic) NSTimeInterval brandingRetryTime;
+@property(nonatomic) NSTimeInterval thumbnailBrandingRetryTime;
+@property(nonatomic) NSTimeInterval thumbnailRetryTime;
 @property(nonatomic) BOOL applyingTitle;
 @property(nonatomic) BOOL applyingThumbnail;
 @property(nonatomic) BOOL relatedViewsBound;
