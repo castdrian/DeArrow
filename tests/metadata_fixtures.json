@@ -1,0 +1,37 @@
+[
+  {
+    "name": "long-form-video-node",
+    "adapter": "YTVideoNode",
+    "videoID": "dQw4w9WgXcQ",
+    "title": "Long-form fixture",
+    "channel": "Example Channel"
+  },
+  {
+    "name": "video-with-context-node",
+    "adapter": "YTVideoWithContextNode",
+    "videoID": "M7lc1UVf-VE",
+    "title": "Context fixture",
+    "channel": "Example Channel"
+  },
+  {
+    "name": "elements-renderer",
+    "adapter": "Elements",
+    "videoID": "BaW_ungD7lE",
+    "title": "Elements fixture",
+    "channel": "Elements Channel"
+  },
+  {
+    "name": "shorts-renderer",
+    "adapter": "Shorts",
+    "videoID": "aqz-KE-bpKQ",
+    "title": "Shorts fixture",
+    "channel": "Shorts Channel"
+  },
+  {
+    "name": "incomplete-renderer",
+    "adapter": "Incomplete",
+    "videoID": "9bZkp7q19f0",
+    "title": "",
+    "channel": ""
+  }
+]

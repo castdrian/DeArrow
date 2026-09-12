@@ -1,6 +1,8 @@
 *
 !.gitignore
 !control
+!.github/
+!.github/**
 !DeArrow.plist
 !Makefile
 !*.h
@@ -15,5 +17,8 @@
 !scripts/**
 !tests/
 !tests/**
+!tools/
+!tools/**
 !go.mod
 !go.sum
+!CHANGELOG.md

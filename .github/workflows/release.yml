@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+env:
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  release:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+      - name: Setup Theos
+        uses: Randomblock1/theos-action@v1.5
+      - name: Install YouTube headers
+        run: git clone --depth 1 https://github.com/PoomSmart/YouTubeHeader "$THEOS/include/YouTubeHeader"
+      - name: Install GNU Make
+        run: |
+          brew install make
+          gmake --version
+      - name: Read package metadata
+        run: |
+          PACKAGE=$(grep '^Package:' control | cut -d ' ' -f 2)
+          VERSION=$(grep '^Version:' control | cut -d ' ' -f 2)
+          echo "PACKAGE=$PACKAGE" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "DEB_FILE=${PACKAGE}_${VERSION}_iphoneos-arm64.deb" >> "$GITHUB_ENV"
+      - name: Run fixture tests
+        run: go test ./...
+      - name: Generate changelog
+        run: go run scripts/generate_changelog.go --version "${{ env.VERSION }}"
+      - name: Build package
+        run: gmake clean package FINALPACKAGE=1
+      - name: Verify package
+        run: test -s "packages/${{ env.DEB_FILE }}"
+      - name: Publish GitHub release
+        id: release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: ${{ env.VERSION }}
+          body_path: .github/release-notes.md
+          generate_release_notes: true
+          files: packages/${{ env.DEB_FILE }}
+          fail_on_unmatched_files: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Dispatch apt-repo update
+        uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.REPO_ACCESS_TOKEN }}
+          script: |
+            const assets = JSON.parse('${{ steps.release.outputs.assets }}');
+            const asset = assets.find(item => item.name === process.env.DEB_FILE);
+            if (!asset) {
+              core.setFailed('The release did not contain the expected package asset');
+              return;
+            }
+            const fs = require('fs');
+            const changelog = fs.readFileSync('CHANGELOG.md', 'utf8');
+            await github.rest.repos.createDispatchEvent({
+              owner: 'castdrian',
+              repo: 'apt-repo',
+              event_type: 'package-update',
+              client_payload: {
+                package_url: asset.browser_download_url,
+                package_name: process.env.DEB_FILE,
+                changelog,
+                release_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/tag/v${process.env.VERSION}`,
+                version: process.env.VERSION
+              }
+            });
+        env:
+          DEB_FILE: ${{ env.DEB_FILE }}
+          VERSION: ${{ env.VERSION }}
