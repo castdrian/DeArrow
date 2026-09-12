@@ -156,7 +156,8 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
     [super viewDidLoad];
     self.view.backgroundColor = UIColor.systemBackgroundColor;
     self.tableView.backgroundColor = UIColor.systemGroupedBackgroundColor;
-    self.tableView.rowHeight = 52.0;
+    self.tableView.rowHeight = UITableViewAutomaticDimension;
+    self.tableView.estimatedRowHeight = 56.0;
     self.tableView.tableFooterView = [UIView new];
     self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeNever;
     self.enabledSwitch = [UISwitch new];
@@ -220,31 +221,89 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
     return DeArrowLocalized(@"ABOUT", @"About");
 }
 
+- (NSString *)subtitleForRowAtIndexPath:(NSIndexPath *)indexPath {
+    if (indexPath.section != DeArrowSettingsSectionFiltering)
+        return nil;
+    if (indexPath.row == DeArrowFilteringRowEnabled)
+        return DeArrowLocalized(@"ENABLE_DEARROW_DETAIL", @"Use community-submitted titles and thumbnails");
+    if (indexPath.row == DeArrowFilteringRowTitle)
+        return DeArrowLocalized(@"PREFERRED_TITLE_DETAIL", @"Choose DeArrow or Original titles");
+    return DeArrowLocalized(@"REPLACE_THUMBNAILS_DETAIL", @"Use community-submitted thumbnails");
+}
+
+- (UITableViewCell *)donationCellForTableView:(UITableView *)tableView {
+    static NSString *identifier = @"DeArrowDonationCell";
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:identifier];
+    if (!cell)
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:identifier];
+    for (UIView *subview in cell.contentView.subviews)
+        [subview removeFromSuperview];
+    UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
+    if (@available(iOS 15.0, *)) {
+        UIButtonConfiguration *configuration = [UIButtonConfiguration tintedButtonConfiguration];
+        configuration.image = [UIImage systemImageNamed:@"heart.fill"];
+        configuration.title = DeArrowLocalized(@"DONATE_ON_KOFI", @"Donate on Ko-fi");
+        configuration.imagePadding = 8.0;
+        configuration.contentInsets = NSDirectionalEdgeInsetsMake(12.0, 12.0, 12.0, 12.0);
+        configuration.cornerStyle = UIButtonConfigurationCornerStyleMedium;
+        button.configuration = configuration;
+    } else {
+        [button setImage:[UIImage systemImageNamed:@"heart.fill"] forState:UIControlStateNormal];
+        [button setTitle:DeArrowLocalized(@"DONATE_ON_KOFI", @"Donate on Ko-fi") forState:UIControlStateNormal];
+        button.imageEdgeInsets = UIEdgeInsetsMake(0.0, 0.0, 0.0, 8.0);
+        button.contentEdgeInsets = UIEdgeInsetsMake(12.0, 12.0, 12.0, 12.0);
+    }
+    button.translatesAutoresizingMaskIntoConstraints = NO;
+    button.contentHorizontalAlignment = UIControlContentHorizontalAlignmentCenter;
+    button.accessibilityLabel = DeArrowLocalized(@"DONATE_ON_KOFI", @"Donate on Ko-fi");
+    [button addTarget:self action:@selector(donateTapped:) forControlEvents:UIControlEventTouchUpInside];
+    [cell.contentView addSubview:button];
+    [NSLayoutConstraint activateConstraints:@[
+        [button.topAnchor constraintEqualToAnchor:cell.contentView.topAnchor constant:4.0],
+        [button.leadingAnchor constraintEqualToAnchor:cell.contentView.leadingAnchor constant:16.0],
+        [button.trailingAnchor constraintEqualToAnchor:cell.contentView.trailingAnchor constant:-16.0],
+        [button.bottomAnchor constraintEqualToAnchor:cell.contentView.bottomAnchor constant:-4.0]
+    ]];
+    cell.accessoryView = nil;
+    cell.accessoryType = UITableViewCellAccessoryNone;
+    cell.selectionStyle = UITableViewCellSelectionStyleNone;
+    cell.backgroundColor = UIColor.clearColor;
+    if (@available(iOS 14.0, *))
+        cell.backgroundConfiguration = [UIBackgroundConfiguration clearConfiguration];
+    return cell;
+}
+
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    if (indexPath.section == DeArrowSettingsSectionSupport)
+        return [self donationCellForTableView:tableView];
     static NSString *identifier = @"DeArrowSettingsCell";
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:identifier];
     if (!cell)
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleValue1 reuseIdentifier:identifier];
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:identifier];
     cell.accessoryView = nil;
     cell.accessoryType = UITableViewCellAccessoryNone;
     cell.selectionStyle = UITableViewCellSelectionStyleDefault;
+    cell.backgroundColor = UIColor.clearColor;
     cell.textLabel.text = nil;
     cell.detailTextLabel.text = nil;
-    if (indexPath.section == DeArrowSettingsSectionSupport) {
-        cell.textLabel.text = DeArrowLocalized(@"DONATE_ON_KOFI", @"Donate on Ko-fi");
-        cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-    } else if (indexPath.section == DeArrowSettingsSectionFiltering && indexPath.row == DeArrowFilteringRowEnabled) {
+    cell.textLabel.numberOfLines = 0;
+    cell.detailTextLabel.numberOfLines = 0;
+    cell.detailTextLabel.textColor = UIColor.secondaryLabelColor;
+    if (indexPath.section == DeArrowSettingsSectionFiltering && indexPath.row == DeArrowFilteringRowEnabled) {
         cell.textLabel.text = DeArrowLocalized(@"ENABLE_DEARROW", @"Enable DeArrow");
+        cell.detailTextLabel.text = [self subtitleForRowAtIndexPath:indexPath];
         cell.accessoryView = self.enabledSwitch;
         cell.selectionStyle = UITableViewCellSelectionStyleNone;
     } else if (indexPath.section == DeArrowSettingsSectionFiltering && indexPath.row == DeArrowFilteringRowTitle) {
         cell.textLabel.text = DeArrowLocalized(@"PREFERRED_TITLE", @"Preferred title");
-        cell.detailTextLabel.text = [DeArrowPreferences sharedPreferences].titlePreference == DeArrowTitlePreferenceOriginal
+        NSString *value = [DeArrowPreferences sharedPreferences].titlePreference == DeArrowTitlePreferenceOriginal
             ? DeArrowLocalized(@"ORIGINAL", @"Original")
             : DeArrowLocalized(@"DEARROW", @"DeArrow");
+        cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ · %@", [self subtitleForRowAtIndexPath:indexPath], value];
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
     } else if (indexPath.section == DeArrowSettingsSectionFiltering && indexPath.row == DeArrowFilteringRowThumbnails) {
         cell.textLabel.text = DeArrowLocalized(@"REPLACE_THUMBNAILS", @"Replace thumbnails");
+        cell.detailTextLabel.text = [self subtitleForRowAtIndexPath:indexPath];
         cell.accessoryView = self.thumbnailSwitch;
         cell.selectionStyle = UITableViewCellSelectionStyleNone;
     } else if (indexPath.section == DeArrowSettingsSectionCache) {
@@ -265,6 +324,10 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
     }
     return cell;
+}
+
+- (void)donateTapped:(UIButton *)sender {
+    [[UIApplication sharedApplication] openURL:[NSURL URLWithString:@"https://ko-fi.com/castdrian"] options:@{} completionHandler:nil];
 }
 
 - (void)presentTitlePickerFromCell:(UITableViewCell *)cell {

@@ -5,9 +5,12 @@
 "ABOUT" = "About";
 "DONATE_ON_KOFI" = "Donate on Ko-fi";
 "ENABLE_DEARROW" = "Enable DeArrow";
+"ENABLE_DEARROW_DETAIL" = "Use community-submitted titles and thumbnails";
 "PREFERRED_TITLE" = "Preferred title";
+"PREFERRED_TITLE_DETAIL" = "Choose DeArrow or Original titles";
 "ORIGINAL" = "Original";
 "REPLACE_THUMBNAILS" = "Replace thumbnails";
+"REPLACE_THUMBNAILS_DETAIL" = "Use community-submitted thumbnails";
 "CLEAR_CACHE" = "Clear cache";
 "DONATE" = "Donate";
 "VERSION" = "Version";
