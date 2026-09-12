@@ -2,9 +2,11 @@
 
 DeArrow brings community-submitted titles and thumbnails to YouTube for iOS without touching YouTube’s networking or layout engine.
 
-[![Latest release](https://img.shields.io/github/v/release/castdrian/DeArrow?display_name=tag&style=flat-square)](https://github.com/castdrian/DeArrow/releases)
-[![Build](https://img.shields.io/github/actions/workflow/status/castdrian/DeArrow/build.yml?branch=main&style=flat-square)](https://github.com/castdrian/DeArrow/actions/workflows/build.yml)
+[![Release](https://github.com/castdrian/DeArrow/actions/workflows/release.yml/badge.svg)](https://github.com/castdrian/DeArrow/actions/workflows/release.yml)
+[![Build](https://github.com/castdrian/DeArrow/actions/workflows/build.yml/badge.svg)](https://github.com/castdrian/DeArrow/actions/workflows/build.yml)
 [![License](https://img.shields.io/github/license/castdrian/DeArrow?style=flat-square)](https://github.com/castdrian/DeArrow/blob/main/LICENSE)
+
+<p align="center"><img src="layout/Library/Application%20Support/DeArrow.bundle/dearrow.svg" alt="DeArrow" width="128"></p>
 
 ## Features
 
@@ -23,6 +25,10 @@ DeArrow brings community-submitted titles and thumbnails to YouTube for iOS with
 | YouTube | 19.42.1 | 21.36.6 |
 
 The latest verified YouTube version is the App Store release available on September 12, 2026. The tweak leaves unsupported or unknown renderer paths untouched.
+
+## Download
+
+[Install from the apt repository](https://repo.adriancastro.dev) · [Download the latest release](https://github.com/castdrian/DeArrow/releases/latest)
 
 ## Installation
 
