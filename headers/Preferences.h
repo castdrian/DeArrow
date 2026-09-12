@@ -16,8 +16,10 @@ extern NSString *const DeArrowPreferencesDidChangeNotification;
 @property(nonatomic) DeArrowTitlePreference titlePreference;
 @property(nonatomic) BOOL replaceThumbnails;
 @property(nonatomic, copy, readonly) NSString *installedVersion;
+@property(nonatomic, copy) NSString *lastViewedChangelogVersion;
 
 - (void)clearCache;
+- (void)markChangelogSeen;
 
 @end
 

@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
 
 #import "Metadata.h"
 
@@ -10,6 +11,7 @@
 @property(nonatomic, strong, nullable) BrandingRequestToken *thumbnailBrandingToken;
 @property(nonatomic, strong, nullable) BrandingRequestToken *thumbnailToken;
 @property(nonatomic, copy, nullable) NSAttributedString *originalTitle;
+@property(nonatomic, strong, nullable) UIImage *originalImage;
 @property(nonatomic) NSUInteger generation;
 @property(nonatomic) BOOL metadataAttempted;
 @property(nonatomic) BOOL applyingTitle;
@@ -27,3 +29,5 @@ VideoMetadataRecord *DeArrowMetadataFromParents(id object);
 void DeArrowCancelBinding(id object);
 void DeArrowRegisterTitleObject(id object);
 void DeArrowRefreshTitleObjects(void);
+void DeArrowRegisterThumbnailObject(id object);
+void DeArrowRefreshThumbnailObjects(void);

@@ -11,6 +11,8 @@
 !README.md
 !PLAN.md
 !LICENSE
+!headers/
+!headers/**
 !layout/
 !layout/**
 !scripts/
@@ -19,6 +21,8 @@
 !tests/**
 !tools/
 !tools/**
+!sources/
+!sources/**
 !go.mod
 !go.sum
 !CHANGELOG.md

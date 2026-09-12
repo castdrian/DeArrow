@@ -7,6 +7,7 @@ NSString *const DeArrowPreferencesDidChangeNotification = @"dev.adrian.dearrow.p
 static NSString *const DeArrowPreferenceEnabledKey = @"enabled";
 static NSString *const DeArrowPreferenceTitleKey = @"titlePreference";
 static NSString *const DeArrowPreferenceThumbnailsKey = @"replaceThumbnails";
+static NSString *const DeArrowPreferenceChangelogKey = @"lastViewedChangelogVersion";
 
 @interface DeArrowPreferences ()
 @property(nonatomic, strong) NSUserDefaults *defaults;
@@ -30,7 +31,8 @@ static NSString *const DeArrowPreferenceThumbnailsKey = @"replaceThumbnails";
         [_defaults registerDefaults:@{
             DeArrowPreferenceEnabledKey: @YES,
             DeArrowPreferenceTitleKey: @(DeArrowTitlePreferenceDeArrow),
-            DeArrowPreferenceThumbnailsKey: @YES
+            DeArrowPreferenceThumbnailsKey: @YES,
+            DeArrowPreferenceChangelogKey: @""
         }];
     }
     return self;
@@ -80,6 +82,22 @@ static NSString *const DeArrowPreferenceThumbnailsKey = @"replaceThumbnails";
 #else
     return @"1.0.0";
 #endif
+}
+
+- (NSString *)lastViewedChangelogVersion {
+    return [self.defaults stringForKey:DeArrowPreferenceChangelogKey] ?: @"";
+}
+
+- (void)setLastViewedChangelogVersion:(NSString *)version {
+    NSString *value = version ?: @"";
+    if ([self.lastViewedChangelogVersion isEqualToString:value])
+        return;
+    [self.defaults setObject:value forKey:DeArrowPreferenceChangelogKey];
+    [self.defaults synchronize];
+}
+
+- (void)markChangelogSeen {
+    self.lastViewedChangelogVersion = self.installedVersion;
 }
 
 - (void)postChange {

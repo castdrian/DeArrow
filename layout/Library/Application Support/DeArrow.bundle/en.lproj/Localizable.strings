@@ -1,4 +1,9 @@
 "DEARROW" = "DeArrow";
+"SUPPORT" = "Support";
+"FILTERING" = "Filtering";
+"CACHE" = "Cache";
+"ABOUT" = "About";
+"DONATE_ON_KOFI" = "Donate on Ko-fi";
 "ENABLE_DEARROW" = "Enable DeArrow";
 "PREFERRED_TITLE" = "Preferred title";
 "ORIGINAL" = "Original";
@@ -7,4 +12,8 @@
 "DONATE" = "Donate";
 "VERSION" = "Version";
 "CACHE_CLEARED" = "Cache cleared";
+"WHATS_NEW" = "What’s New";
+"NEW" = "NEW";
+"CANCEL" = "Cancel";
+"OK" = "OK";
 "GITHUB" = "DeArrow on GitHub";

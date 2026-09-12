@@ -14,6 +14,7 @@ static void ApplyThumbnailToObject(id object, BOOL animated) {
         [DeArrowPreferences sharedPreferences].replaceThumbnails == NO)
         return;
     BrandingBinding *binding = DeArrowBindingForObject(object, YES);
+    DeArrowRegisterThumbnailObject(object);
     VideoMetadataRecord *metadata = DeArrowStoredMetadataForObject(object);
     if (!metadata)
         metadata = DeArrowMetadataFromParents(object);
@@ -35,6 +36,7 @@ static void ApplyThumbnailToObject(id object, BOOL animated) {
         if (!strongObject || !strongBinding || strongBinding.generation != generation ||
             ![strongBinding.metadata.videoID isEqualToString:videoID] || !record.thumbnailURL)
             return;
+        strongBinding.thumbnailBrandingToken = nil;
         if (![DeArrowPreferences sharedPreferences].isEnabled ||
             ![DeArrowPreferences sharedPreferences].replaceThumbnails)
             return;
@@ -47,6 +49,7 @@ static void ApplyThumbnailToObject(id object, BOOL animated) {
             if (!currentObject || !currentBinding || currentBinding.generation != generation ||
                 ![currentBinding.metadata.videoID isEqualToString:videoID] || !image)
                 return;
+            currentBinding.thumbnailToken = nil;
             if (currentBinding.applyingThumbnail)
                 return;
             currentBinding.applyingThumbnail = YES;
@@ -59,6 +62,27 @@ static void ApplyThumbnailToObject(id object, BOOL animated) {
     }];
     if (animated)
         [object setNeedsLayout];
+}
+
+void DeArrowRefreshThumbnailObject(id object) {
+    if (!object)
+        return;
+    BrandingBinding *binding = DeArrowBindingForObject(object, NO);
+    if (!binding)
+        return;
+    DeArrowPreferences *preferences = [DeArrowPreferences sharedPreferences];
+    if (!preferences.isEnabled || !preferences.replaceThumbnails) {
+        if (binding.originalImage && !binding.applyingThumbnail) {
+            binding.applyingThumbnail = YES;
+            if ([object respondsToSelector:@selector(setImage:animated:)])
+                ((void (*)(id, SEL, UIImage *, BOOL))objc_msgSend)(object, @selector(setImage:animated:), binding.originalImage, NO);
+            else if ([object respondsToSelector:@selector(setImage:)])
+                [object setImage:binding.originalImage];
+            binding.applyingThumbnail = NO;
+        }
+        return;
+    }
+    ApplyThumbnailToObject(object, NO);
 }
 
 static void BindRelatedLabels(UIView *imageView, NSString *videoID) {
@@ -100,6 +124,11 @@ static void InstallImageNodeSetter(Class targetClass) {
     id replacement = ^(id object, SEL command, UIImage *image) {
         BrandingBinding *binding = DeArrowBindingForObject(object, NO);
         ((void (*)(id, SEL, UIImage *))original)(object, command, image);
+        if (!binding || !binding.applyingThumbnail) {
+            binding = DeArrowBindingForObject(object, YES);
+            if (!binding.originalImage)
+                binding.originalImage = image;
+        }
         if (!binding.applyingThumbnail)
             ApplyThumbnailToObject(object, NO);
     };
@@ -116,6 +145,9 @@ static void InstallImageLoadCallback(Class targetClass) {
     IMP original = method_getImplementation(method);
     id replacement = ^(id object, SEL command, id node, UIImage *image) {
         ((void (*)(id, SEL, id, UIImage *))original)(object, command, node, image);
+        BrandingBinding *binding = DeArrowBindingForObject(node, YES);
+        if (!binding.originalImage && image)
+            binding.originalImage = image;
         ApplyThumbnailToObject(object, NO);
     };
     method_setImplementation(method, imp_implementationWithBlock(replacement));
@@ -158,6 +190,11 @@ static void InstallImageViewSetter(Class targetClass) {
     id replacement = ^(id object, SEL command, UIImage *image, BOOL animated) {
         ((void (*)(id, SEL, UIImage *, BOOL))original)(object, command, image, animated);
         BrandingBinding *binding = DeArrowBindingForObject(object, NO);
+        if (!binding || !binding.applyingThumbnail) {
+            binding = DeArrowBindingForObject(object, YES);
+            if (!binding.originalImage)
+                binding.originalImage = image;
+        }
         if (!binding.applyingThumbnail) {
             VideoMetadataRecord *metadata = DeArrowStoredMetadataForObject(object);
             if (!metadata) {
@@ -224,4 +261,10 @@ void DeArrowInstallThumbnailIntegration(void) {
         InstallWindowCancellation(imageViewClass);
     }
     InstallReuseCancellation([UICollectionViewCell class]);
+    [[NSNotificationCenter defaultCenter] addObserverForName:DeArrowPreferencesDidChangeNotification
+                                                        object:nil
+                                                         queue:[NSOperationQueue mainQueue]
+                                                    usingBlock:^(__unused NSNotification *notification) {
+        DeArrowRefreshThumbnailObjects();
+    }];
 }

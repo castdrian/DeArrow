@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -172,7 +173,12 @@ func update(root string, version string) error {
 	if err := os.WriteFile(changelogPath, []byte(result+"\n"), 0644); err != nil {
 		return err
 	}
-	return os.WriteFile(releaseNotesPath, []byte(section+"\n"), 0644)
+	if err := os.WriteFile(releaseNotesPath, []byte(section+"\n"), 0644); err != nil {
+		return err
+	}
+	headerPath := filepath.Join(root, "headers", "ChangelogData.h")
+	header := "#define DEARROW_CHANGELOG @" + strconv.Quote(result+"\n") + "\n"
+	return os.WriteFile(headerPath, []byte(header), 0644)
 }
 
 func main() {

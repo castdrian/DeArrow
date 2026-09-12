@@ -6,6 +6,7 @@
 #import "BrandingClient.h"
 #import "Preferences.h"
 #import "TitleIntegration.h"
+#import "ThumbnailIntegration.h"
 
 @implementation BrandingBinding
 @end
@@ -17,6 +18,15 @@
 static void *BrandingBindingKey = &BrandingBindingKey;
 
 static NSHashTable *TitleObjects(void) {
+    static NSHashTable *objects;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        objects = [NSHashTable weakObjectsHashTable];
+    });
+    return objects;
+}
+
+static NSHashTable *ThumbnailObjects(void) {
     static NSHashTable *objects;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
@@ -57,6 +67,7 @@ void DeArrowAssociateMetadata(id object, VideoMetadataRecord *metadata) {
     binding.thumbnailBrandingToken = nil;
     binding.thumbnailToken = nil;
     binding.originalTitle = nil;
+    binding.originalImage = nil;
     binding.relatedViewsBound = NO;
     binding.generation += 1;
     binding.metadata = [metadata copy];
@@ -167,6 +178,29 @@ void DeArrowRefreshTitleObjects(void) {
         for (id object in objects) {
             DeArrowRefreshTitleObject(object);
         }
+    };
+    if (NSThread.isMainThread)
+        refresh();
+    else
+        dispatch_async(dispatch_get_main_queue(), refresh);
+}
+
+void DeArrowRegisterThumbnailObject(id object) {
+    if (!object)
+        return;
+    @synchronized (ThumbnailObjects()) {
+        [ThumbnailObjects() addObject:object];
+    }
+}
+
+void DeArrowRefreshThumbnailObjects(void) {
+    void (^refresh)(void) = ^{
+        NSArray *objects;
+        @synchronized (ThumbnailObjects()) {
+            objects = ThumbnailObjects().allObjects;
+        }
+        for (id object in objects)
+            DeArrowRefreshThumbnailObject(object);
     };
     if (NSThread.isMainThread)
         refresh();
