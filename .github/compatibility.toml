@@ -1,21 +1,31 @@
 [[rows]]
-label = "iOS / iPadOS"
-value = "27.0 device; 15.0+ minimum"
-status = "untested"
+label = "iOS"
+value = "26.0.1 and newer"
+status = "verified"
 
 [[rows]]
 label = "YouTube"
-value = "21.35.3 device; 19.42.1 baseline"
-status = "untested"
+value = "21.35.3 and newer"
+status = "verified"
 
 [[rows]]
 label = "ElleKit"
-value = "Rootless injection"
+value = "palera1n, Dopamine, Sideloaded"
+status = "verified"
+
+[[rows]]
+label = "TrollFools"
+value = "TrollStore"
 status = "untested"
 
 [[rows]]
-label = "Sideloaded builds"
-value = "Injected dylib"
+label = "CydiaSubstrate"
+value = ""
+status = "untested"
+
+[[rows]]
+label = "TweakLoader"
+value = "LiveContainer"
 status = "untested"
 
 [[legend]]
