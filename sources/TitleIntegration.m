@@ -4,6 +4,7 @@
 #import <objc/runtime.h>
 
 #import "BrandingClient.h"
+#import "HookSupport.h"
 #import "IntegrationSupport.h"
 #import "Preferences.h"
 
@@ -116,52 +117,38 @@ static void HandleAttributedText(id object, SEL selector, NSAttributedString *va
 
 static void InstallAttributedTextHook(Class targetClass) {
     SEL selector = @selector(setAttributedText:);
-    Method inheritedMethod = class_getInstanceMethod(targetClass, selector);
-    if (!inheritedMethod)
-        return;
-    const char *types = method_getTypeEncoding(inheritedMethod);
-    class_addMethod(targetClass, selector, method_getImplementation(inheritedMethod), types);
-    Method method = class_getInstanceMethod(targetClass, selector);
-    IMP original = method_getImplementation(method);
-    id replacement = ^(id object, SEL command, NSAttributedString *value) {
-        HandleAttributedText(object, command, value, original);
-    };
-    method_setImplementation(method, imp_implementationWithBlock(replacement));
+    DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
+        return ^(id object, SEL selector, NSAttributedString *value) {
+            HandleAttributedText(object, selector, value, original);
+        };
+    });
 }
 
 static void InstallPlayerVideoGetter(Class targetClass, SEL selector) {
-    Method inheritedMethod = class_getInstanceMethod(targetClass, selector);
-    if (!inheritedMethod)
-        return;
-    class_addMethod(targetClass, selector, method_getImplementation(inheritedMethod), method_getTypeEncoding(inheritedMethod));
-    Method method = class_getInstanceMethod(targetClass, selector);
-    IMP original = method_getImplementation(method);
-    id replacement = ^id(id object, SEL command) {
-        id result = ((id (*)(id, SEL))original)(object, command);
-        VideoMetadataRecord *metadata = [VideoMetadataAdapters recordForObject:result];
-        if (!metadata && [result isKindOfClass:[NSString class]]) {
-            NSString *videoID = [VideoMetadataAdapters videoIDFromURL:result];
-            if (!videoID.length && [(NSString *)result length] == 11)
-                videoID = (NSString *)result;
-            if (videoID.length)
-                metadata = [[VideoMetadataRecord alloc] initWithVideoID:videoID title:nil channel:nil];
-        }
-        if (metadata)
-            DeArrowAssociateMetadata(object, metadata);
-        return result;
-    };
-    method_setImplementation(method, imp_implementationWithBlock(replacement));
+    DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
+        return ^id(id object, SEL selector) {
+            id result = ((id (*)(id, SEL))original)(object, selector);
+            VideoMetadataRecord *metadata = [VideoMetadataAdapters recordForObject:result];
+            if (!metadata && [result isKindOfClass:[NSString class]]) {
+                NSString *videoID = [VideoMetadataAdapters videoIDFromURL:result];
+                if (!videoID.length && [(NSString *)result length] == 11)
+                    videoID = (NSString *)result;
+                if (videoID.length)
+                    metadata = [[VideoMetadataRecord alloc] initWithVideoID:videoID title:nil channel:nil];
+            }
+            if (metadata)
+                DeArrowAssociateMetadata(object, metadata);
+            return result;
+        };
+    });
 }
 
 void DeArrowInstallTitleIntegration(void) {
-    Class textClass = NSClassFromString(@"ELMTextNode");
-    if (!textClass)
-        textClass = NSClassFromString(@"ASTextNode");
-    if (textClass)
-        InstallAttributedTextHook(textClass);
-    Class labelClass = NSClassFromString(@"YTFormattedStringLabel");
-    if (labelClass)
-        InstallAttributedTextHook(labelClass);
+    for (NSString *className in @[@"ELMTextNode", @"ASTextNode", @"YTFormattedStringLabel"]) {
+        Class textClass = NSClassFromString(className);
+        if (textClass)
+            InstallAttributedTextHook(textClass);
+    }
 
     for (NSString *className in @[@"YTPlayerViewController", @"YTReelPlayerViewController", @"YTShortsPlayerViewController"]) {
         Class playerClass = NSClassFromString(className);

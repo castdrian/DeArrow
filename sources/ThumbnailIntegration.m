@@ -5,6 +5,7 @@
 #import <objc/runtime.h>
 
 #import "BrandingClient.h"
+#import "HookSupport.h"
 #import "IntegrationSupport.h"
 #import "Metadata.h"
 #import "Preferences.h"
@@ -131,141 +132,109 @@ static void BindRelatedLabels(UIView *imageView, NSString *videoID) {
 
 static void InstallImageNodeSetter(Class targetClass) {
     SEL selector = @selector(setImage:);
-    Method inheritedMethod = class_getInstanceMethod(targetClass, selector);
-    if (!inheritedMethod)
-        return;
-    class_addMethod(targetClass, selector, method_getImplementation(inheritedMethod), method_getTypeEncoding(inheritedMethod));
-    Method method = class_getInstanceMethod(targetClass, selector);
-    IMP original = method_getImplementation(method);
-    id replacement = ^(id object, SEL command, UIImage *image) {
-        BrandingBinding *binding = DeArrowBindingForObject(object, NO);
-        ((void (*)(id, SEL, UIImage *))original)(object, command, image);
-        if (!binding || !binding.applyingThumbnail) {
-            binding = DeArrowBindingForObject(object, YES);
-            binding.originalImage = image;
-        }
-        if (!binding.applyingThumbnail)
-            ApplyThumbnailToObject(object, NO);
-    };
-    method_setImplementation(method, imp_implementationWithBlock(replacement));
+    DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
+        return ^(id object, SEL selector, UIImage *image) {
+            BrandingBinding *binding = DeArrowBindingForObject(object, NO);
+            ((void (*)(id, SEL, UIImage *))original)(object, selector, image);
+            if (!binding || !binding.applyingThumbnail) {
+                binding = DeArrowBindingForObject(object, YES);
+                binding.originalImage = image;
+            }
+            if (!binding.applyingThumbnail)
+                ApplyThumbnailToObject(object, NO);
+        };
+    });
 }
 
 static void InstallImageLoadCallback(Class targetClass) {
     SEL selector = @selector(imageNode:didLoadImage:);
-    Method method = class_getInstanceMethod(targetClass, selector);
-    if (!method)
-        return;
-    class_addMethod(targetClass, selector, method_getImplementation(method), method_getTypeEncoding(method));
-    method = class_getInstanceMethod(targetClass, selector);
-    IMP original = method_getImplementation(method);
-    id replacement = ^(id object, SEL command, id node, UIImage *image) {
-        ((void (*)(id, SEL, id, UIImage *))original)(object, command, node, image);
-        BrandingBinding *binding = DeArrowBindingForObject(node, YES);
-        binding.originalImage = image;
-        BrandingBinding *objectBinding = DeArrowBindingForObject(object, YES);
-        objectBinding.originalImage = image;
-        ApplyThumbnailToObject(object, NO);
-    };
-    method_setImplementation(method, imp_implementationWithBlock(replacement));
+    DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
+        return ^(id object, SEL selector, id node, UIImage *image) {
+            ((void (*)(id, SEL, id, UIImage *))original)(object, selector, node, image);
+            BrandingBinding *binding = DeArrowBindingForObject(node, YES);
+            binding.originalImage = image;
+            BrandingBinding *objectBinding = DeArrowBindingForObject(object, YES);
+            objectBinding.originalImage = image;
+            ApplyThumbnailToObject(object, NO);
+        };
+    });
 }
 
 static void InstallThumbnailControllerInitializer(Class targetClass) {
     SEL selector = NSSelectorFromString(@"initWithImageView:URLs:imageService:");
-    Method method = class_getInstanceMethod(targetClass, selector);
-    if (!method)
-        return;
-    class_addMethod(targetClass, selector, method_getImplementation(method), method_getTypeEncoding(method));
-    method = class_getInstanceMethod(targetClass, selector);
-    IMP original = method_getImplementation(method);
-    id replacement = ^id(id object, SEL command, UIView *imageView, NSDictionary *URLs, id imageService) {
-        id result = ((id (*)(id, SEL, UIView *, NSDictionary *, id))original)(object, command, imageView, URLs, imageService);
-        NSString *videoID;
-        for (id value in URLs.allValues) {
-            videoID = [VideoMetadataAdapters videoIDFromURL:value];
-            if (videoID.length)
-                break;
-        }
-        if (videoID.length) {
-            DeArrowAssociateVideoID(result, videoID);
-            DeArrowAssociateVideoID(imageView, videoID);
-            BindRelatedLabels(imageView, videoID);
-        }
-        return result;
-    };
-    method_setImplementation(method, imp_implementationWithBlock(replacement));
+    DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
+        return ^id(id object, SEL selector, UIView *imageView, NSDictionary *URLs, id imageService) {
+            id result = ((id (*)(id, SEL, UIView *, NSDictionary *, id))original)(object, selector, imageView, URLs, imageService);
+            NSString *videoID;
+            for (id value in URLs.allValues) {
+                videoID = [VideoMetadataAdapters videoIDFromURL:value];
+                if (videoID.length)
+                    break;
+            }
+            if (videoID.length) {
+                DeArrowAssociateVideoID(result, videoID);
+                DeArrowAssociateVideoID(imageView, videoID);
+                BindRelatedLabels(imageView, videoID);
+            }
+            return result;
+        };
+    });
 }
 
 static void InstallImageViewSetter(Class targetClass) {
     SEL selector = @selector(setImage:animated:);
-    Method method = class_getInstanceMethod(targetClass, selector);
-    if (!method)
-        return;
-    class_addMethod(targetClass, selector, method_getImplementation(method), method_getTypeEncoding(method));
-    method = class_getInstanceMethod(targetClass, selector);
-    IMP original = method_getImplementation(method);
-    id replacement = ^(id object, SEL command, UIImage *image, BOOL animated) {
-        ((void (*)(id, SEL, UIImage *, BOOL))original)(object, command, image, animated);
-        BrandingBinding *binding = DeArrowBindingForObject(object, NO);
-        if (!binding || !binding.applyingThumbnail) {
-            binding = DeArrowBindingForObject(object, YES);
-            binding.originalImage = image;
-        }
-        if (!binding.applyingThumbnail) {
-            VideoMetadataRecord *metadata = DeArrowStoredMetadataForObject(object);
-            if (!metadata) {
-                id delegate = [object respondsToSelector:@selector(delegate)] ? [object delegate] : nil;
-                metadata = DeArrowStoredMetadataForObject(delegate);
-                if (metadata)
-                    DeArrowAssociateMetadata(object, metadata);
+    DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
+        return ^(id object, SEL selector, UIImage *image, BOOL animated) {
+            ((void (*)(id, SEL, UIImage *, BOOL))original)(object, selector, image, animated);
+            BrandingBinding *binding = DeArrowBindingForObject(object, NO);
+            if (!binding || !binding.applyingThumbnail) {
+                binding = DeArrowBindingForObject(object, YES);
+                binding.originalImage = image;
             }
-            if (metadata)
-                BindRelatedLabels((UIView *)object, metadata.videoID);
-            ApplyThumbnailToObject(object, animated);
-        }
-    };
-    method_setImplementation(method, imp_implementationWithBlock(replacement));
+            if (!binding.applyingThumbnail) {
+                VideoMetadataRecord *metadata = DeArrowStoredMetadataForObject(object);
+                if (!metadata) {
+                    id delegate = [object respondsToSelector:@selector(delegate)] ? [object delegate] : nil;
+                    metadata = DeArrowStoredMetadataForObject(delegate);
+                    if (metadata)
+                        DeArrowAssociateMetadata(object, metadata);
+                }
+                if (metadata)
+                    BindRelatedLabels((UIView *)object, metadata.videoID);
+                ApplyThumbnailToObject(object, animated);
+            }
+        };
+    });
 }
 
 static void InstallReuseCancellation(Class targetClass) {
     SEL selector = @selector(prepareForReuse);
-    Method method = class_getInstanceMethod(targetClass, selector);
-    if (!method)
-        return;
-    class_addMethod(targetClass, selector, method_getImplementation(method), method_getTypeEncoding(method));
-    method = class_getInstanceMethod(targetClass, selector);
-    IMP original = method_getImplementation(method);
-    id replacement = ^(id object, SEL command) {
-        ((void (*)(id, SEL))original)(object, command);
-        DeArrowCancelBinding(object);
-    };
-    method_setImplementation(method, imp_implementationWithBlock(replacement));
+    DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
+        return ^(id object, SEL selector) {
+            ((void (*)(id, SEL))original)(object, selector);
+            DeArrowCancelBinding(object);
+        };
+    });
 }
 
 static void InstallWindowCancellation(Class targetClass) {
     SEL selector = @selector(didMoveToWindow);
-    Method method = class_getInstanceMethod(targetClass, selector);
-    if (!method)
-        return;
-    class_addMethod(targetClass, selector, method_getImplementation(method), method_getTypeEncoding(method));
-    method = class_getInstanceMethod(targetClass, selector);
-    IMP original = method_getImplementation(method);
-    id replacement = ^(id object, SEL command) {
-        ((void (*)(id, SEL))original)(object, command);
-        if (![object window])
-            DeArrowCancelBinding(object);
-    };
-    method_setImplementation(method, imp_implementationWithBlock(replacement));
+    DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
+        return ^(id object, SEL selector) {
+            ((void (*)(id, SEL))original)(object, selector);
+            if (![object window])
+                DeArrowCancelBinding(object);
+        };
+    });
 }
 
 void DeArrowInstallThumbnailIntegration(void) {
-    Class imageNodeClass = NSClassFromString(@"ELMImageNode");
-    if (!imageNodeClass)
-        imageNodeClass = NSClassFromString(@"ASNetworkImageNode");
-    if (!imageNodeClass)
-        imageNodeClass = NSClassFromString(@"ASImageNode");
-    if (imageNodeClass) {
-        InstallImageNodeSetter(imageNodeClass);
-        InstallImageLoadCallback(imageNodeClass);
+    for (NSString *className in @[@"ELMImageNode", @"ASNetworkImageNode", @"ASImageNode"]) {
+        Class imageNodeClass = NSClassFromString(className);
+        if (imageNodeClass) {
+            InstallImageNodeSetter(imageNodeClass);
+            InstallImageLoadCallback(imageNodeClass);
+        }
     }
     Class thumbnailControllerClass = NSClassFromString(@"YTThumbnailController");
     if (thumbnailControllerClass)
@@ -276,10 +245,15 @@ void DeArrowInstallThumbnailIntegration(void) {
         InstallWindowCancellation(imageViewClass);
     }
     InstallReuseCancellation([UICollectionViewCell class]);
-    [[NSNotificationCenter defaultCenter] addObserverForName:DeArrowPreferencesDidChangeNotification
-                                                        object:nil
-                                                         queue:[NSOperationQueue mainQueue]
-                                                    usingBlock:^(__unused NSNotification *notification) {
-        DeArrowRefreshThumbnailObjects();
-    }];
+    for (NSString *className in @[@"ELMCellNode", @"YTVideoNode", @"YTVideoWithContextNode", @"YTShortsNode", @"YTReelNode"])
+        InstallReuseCancellation(NSClassFromString(className));
+    static dispatch_once_t notificationToken;
+    dispatch_once(&notificationToken, ^{
+        [[NSNotificationCenter defaultCenter] addObserverForName:DeArrowPreferencesDidChangeNotification
+                                                            object:nil
+                                                             queue:[NSOperationQueue mainQueue]
+                                                        usingBlock:^(__unused NSNotification *notification) {
+            DeArrowRefreshThumbnailObjects();
+        }];
+    });
 }

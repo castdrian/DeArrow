@@ -4,6 +4,7 @@
 #import <objc/message.h>
 #import <objc/runtime.h>
 
+#import "HookSupport.h"
 #import "SettingsViewController.h"
 #import "YouTube.h"
 
@@ -297,29 +298,8 @@ static void ConfigureSettingsSection(YTSettingsSectionItemManager *manager) {
     }
 }
 
-static void InstallInstanceHook(Class targetClass, SEL selector, id (^builder)(IMP, SEL)) {
-    Method inheritedMethod = class_getInstanceMethod(targetClass, selector);
-    if (!inheritedMethod)
-        return;
-    class_addMethod(targetClass, selector, method_getImplementation(inheritedMethod), method_getTypeEncoding(inheritedMethod));
-    Method method = class_getInstanceMethod(targetClass, selector);
-    IMP original = method_getImplementation(method);
-    method_setImplementation(method, imp_implementationWithBlock(builder(original, selector)));
-}
-
-static void InstallClassHook(Class targetClass, SEL selector, id (^builder)(IMP, SEL)) {
-    Class metaClass = object_getClass(targetClass);
-    Method inheritedMethod = class_getInstanceMethod(metaClass, selector);
-    if (!inheritedMethod)
-        return;
-    class_addMethod(metaClass, selector, method_getImplementation(inheritedMethod), method_getTypeEncoding(inheritedMethod));
-    Method method = class_getInstanceMethod(metaClass, selector);
-    IMP original = method_getImplementation(method);
-    method_setImplementation(method, imp_implementationWithBlock(builder(original, selector)));
-}
-
 static void InstallSettingsNavigationHooks(Class targetClass) {
-    InstallInstanceHook(targetClass, @selector(pushViewController:), ^id(IMP original, SEL selector) {
+    DeArrowInstallInstanceHook(targetClass, @selector(pushViewController:), ^id(IMP original, SEL selector) {
         return ^(id object, SEL command, UIViewController *viewController) {
             YTSettingsViewController *settingsController = SettingsControllerFromObject(object);
             if (!settingsController && [object isKindOfClass:[UINavigationController class]])
@@ -330,7 +310,7 @@ static void InstallSettingsNavigationHooks(Class targetClass) {
             ((void (*)(id, SEL, UIViewController *))original)(object, command, custom ?: viewController);
         };
     });
-    InstallInstanceHook(targetClass, @selector(pushViewController:animated:), ^id(IMP original, SEL selector) {
+    DeArrowInstallInstanceHook(targetClass, @selector(pushViewController:animated:), ^id(IMP original, SEL selector) {
         return ^(id object, SEL command, UIViewController *viewController, BOOL animated) {
             YTSettingsViewController *settingsController = SettingsControllerFromObject(object);
             if (!settingsController && [object isKindOfClass:[UINavigationController class]])
@@ -341,7 +321,7 @@ static void InstallSettingsNavigationHooks(Class targetClass) {
             ((void (*)(id, SEL, UIViewController *, BOOL))original)(object, command, custom ?: viewController, animated);
         };
     });
-    InstallInstanceHook(targetClass, @selector(showOrPushViewController:), ^id(IMP original, SEL selector) {
+    DeArrowInstallInstanceHook(targetClass, @selector(showOrPushViewController:), ^id(IMP original, SEL selector) {
         return ^(id object, SEL command, UIViewController *viewController) {
             YTSettingsViewController *settingsController = SettingsControllerFromObject(object);
             if (!settingsController && [object isKindOfClass:[UINavigationController class]])
@@ -352,7 +332,7 @@ static void InstallSettingsNavigationHooks(Class targetClass) {
             ((void (*)(id, SEL, UIViewController *))original)(object, command, custom ?: viewController);
         };
     });
-    InstallInstanceHook(targetClass, @selector(showViewController:sender:), ^id(IMP original, SEL selector) {
+    DeArrowInstallInstanceHook(targetClass, @selector(showViewController:sender:), ^id(IMP original, SEL selector) {
         return ^(id object, SEL command, UIViewController *viewController, id sender) {
             YTSettingsViewController *settingsController = SettingsControllerFromObject(object);
             if (!settingsController && [object isKindOfClass:[UINavigationController class]])
@@ -367,7 +347,7 @@ static void InstallSettingsNavigationHooks(Class targetClass) {
 
 static void InstallNavigationStackHooks(Class targetClass) {
     InstallSettingsNavigationHooks(targetClass);
-    InstallInstanceHook(targetClass, @selector(setViewControllers:), ^id(IMP original, SEL selector) {
+    DeArrowInstallInstanceHook(targetClass, @selector(setViewControllers:), ^id(IMP original, SEL selector) {
         return ^(id object, SEL command, NSArray<UIViewController *> *viewControllers) {
             YTSettingsViewController *settingsController = SettingsControllerInViewController(object, 0);
             NSMutableArray *replacement = [viewControllers mutableCopy];
@@ -379,7 +359,7 @@ static void InstallNavigationStackHooks(Class targetClass) {
             ((void (*)(id, SEL, NSArray<UIViewController *> *))original)(object, command, replacement ?: viewControllers);
         };
     });
-    InstallInstanceHook(targetClass, @selector(setViewControllers:animated:), ^id(IMP original, SEL selector) {
+    DeArrowInstallInstanceHook(targetClass, @selector(setViewControllers:animated:), ^id(IMP original, SEL selector) {
         return ^(id object, SEL command, NSArray<UIViewController *> *viewControllers, BOOL animated) {
             YTSettingsViewController *settingsController = SettingsControllerInViewController(object, 0);
             NSMutableArray *replacement = [viewControllers mutableCopy];
@@ -435,7 +415,7 @@ static UIViewController *CreateCustomSettingsSplitDestination(YTSettingsViewCont
 }
 
 static void InstallSplitViewSettingsHook(Class targetClass) {
-    InstallInstanceHook(targetClass, @selector(setSecondViewController:), ^id(IMP original, SEL selector) {
+    DeArrowInstallInstanceHook(targetClass, @selector(setSecondViewController:), ^id(IMP original, SEL selector) {
         return ^(id object, SEL command, UIViewController *viewController) {
             YTSettingsViewController *settingsController = SettingsControllerInViewController(SettingsObjectValue(object, @"viewController"), 0);
             if (!settingsController)
@@ -451,21 +431,21 @@ static void InstallSplitViewSettingsHook(Class targetClass) {
 void DeArrowInstallSettingsIntegration(void) {
     Class groupClass = NSClassFromString(@"YTSettingsGroupData");
     if (groupClass) {
-        InstallInstanceHook(groupClass, @selector(orderedCategories), ^id(IMP original, SEL selector) {
+        DeArrowInstallInstanceHook(groupClass, @selector(orderedCategories), ^id(IMP original, SEL selector) {
             return ^id(id object, SEL command) {
                 if ([object respondsToSelector:@selector(type)] && [(YTSettingsGroupData *)object type] == DeArrowSettingsGroup)
                     return @[@(DeArrowSettingsCategory)];
                 return ((id (*)(id, SEL))original)(object, command);
             };
         });
-        InstallInstanceHook(groupClass, @selector(orderedCategoriesForGroupType:), ^id(IMP original, SEL selector) {
+        DeArrowInstallInstanceHook(groupClass, @selector(orderedCategoriesForGroupType:), ^id(IMP original, SEL selector) {
             return ^id(id object, SEL command, NSUInteger type) {
                 if (type == DeArrowSettingsGroup)
                     return @[@(DeArrowSettingsCategory)];
                 return ((id (*)(id, SEL, NSUInteger))original)(object, command, type);
             };
         });
-        InstallInstanceHook(groupClass, @selector(titleForSettingGroupType:), ^id(IMP original, SEL selector) {
+        DeArrowInstallInstanceHook(groupClass, @selector(titleForSettingGroupType:), ^id(IMP original, SEL selector) {
             return ^id(id object, SEL command, NSUInteger type) {
                 if (type == DeArrowSettingsGroup)
                     return nil;
@@ -475,7 +455,7 @@ void DeArrowInstallSettingsIntegration(void) {
     }
     Class groupPresentationClass = NSClassFromString(@"YTAppSettingsGroupPresentationData");
     if (groupPresentationClass) {
-        InstallClassHook(groupPresentationClass, @selector(orderedGroups), ^id(IMP original, SEL selector) {
+        DeArrowInstallClassHook(groupPresentationClass, @selector(orderedGroups), ^id(IMP original, SEL selector) {
             return ^id(id object, SEL command) {
                 NSArray *groups = ((id (*)(id, SEL))original)(object, command);
                 for (id group in groups) {
@@ -493,7 +473,7 @@ void DeArrowInstallSettingsIntegration(void) {
     }
     Class managerClass = SettingsManagerClass();
     if (managerClass) {
-        InstallInstanceHook(managerClass, @selector(initWithParentResponder:controllerDelegate:dataDelegate:settingsViewControllerDelegate:), ^id(IMP original, SEL selector) {
+        DeArrowInstallInstanceHook(managerClass, @selector(initWithParentResponder:controllerDelegate:dataDelegate:settingsViewControllerDelegate:), ^id(IMP original, SEL selector) {
             return ^id(id object, SEL command, id parentResponder, id controllerDelegate, id dataDelegate, id settingsViewControllerDelegate) {
                 id result = ((id (*)(id, SEL, id, id, id, id))original)(object, command, parentResponder, controllerDelegate, dataDelegate, settingsViewControllerDelegate);
                 YTSettingsViewController *controller = SettingsControllerFromObject(dataDelegate) ?: SettingsControllerFromObject(settingsViewControllerDelegate) ?: SettingsControllerFromObject(parentResponder);
@@ -502,7 +482,7 @@ void DeArrowInstallSettingsIntegration(void) {
                 return result;
             };
         });
-        InstallInstanceHook(managerClass, @selector(updateSectionForCategory:withEntry:), ^id(IMP original, SEL selector) {
+        DeArrowInstallInstanceHook(managerClass, @selector(updateSectionForCategory:withEntry:), ^id(IMP original, SEL selector) {
             return ^(id object, SEL command, NSUInteger category, id entry) {
                 if (category == DeArrowSettingsCategory) {
                     ConfigureSettingsSection(object);
@@ -514,21 +494,21 @@ void DeArrowInstallSettingsIntegration(void) {
     }
     Class settingsClass = SettingsViewControllerClass();
     if (settingsClass) {
-        InstallInstanceHook(settingsClass, @selector(setSectionItems:forCategory:title:icon:titleDescription:headerHidden:), ^id(IMP original, SEL selector) {
+        DeArrowInstallInstanceHook(settingsClass, @selector(setSectionItems:forCategory:title:icon:titleDescription:headerHidden:), ^id(IMP original, SEL selector) {
             return ^(id object, SEL command, NSMutableArray *items, NSInteger category, NSString *title, YTIIcon *icon, NSString *description, BOOL headerHidden) {
                 ((void (*)(id, SEL, NSMutableArray *, NSInteger, NSString *, YTIIcon *, NSString *, BOOL))original)(object, command, items, category, title, icon, description, headerHidden);
                 if (category == DeArrowSettingsCategory)
                     SettingsManagerForController(object);
             };
         });
-        InstallInstanceHook(settingsClass, @selector(setSectionItems:forCategory:title:titleDescription:headerHidden:), ^id(IMP original, SEL selector) {
+        DeArrowInstallInstanceHook(settingsClass, @selector(setSectionItems:forCategory:title:titleDescription:headerHidden:), ^id(IMP original, SEL selector) {
             return ^(id object, SEL command, NSMutableArray *items, NSInteger category, NSString *title, NSString *description, BOOL headerHidden) {
                 ((void (*)(id, SEL, NSMutableArray *, NSInteger, NSString *, NSString *, BOOL))original)(object, command, items, category, title, description, headerHidden);
                 if (category == DeArrowSettingsCategory)
                     SettingsManagerForController(object);
             };
         });
-        InstallInstanceHook(settingsClass, @selector(sendSettingsNavigationEndpointForCategory:), ^id(IMP original, SEL selector) {
+        DeArrowInstallInstanceHook(settingsClass, @selector(sendSettingsNavigationEndpointForCategory:), ^id(IMP original, SEL selector) {
             return ^(id object, SEL command, NSUInteger category) {
                 if (category == DeArrowSettingsCategory) {
                     if (!PushCustomSettings(object, YES))
@@ -538,7 +518,7 @@ void DeArrowInstallSettingsIntegration(void) {
                 ((void (*)(id, SEL, NSUInteger))original)(object, command, category);
             };
         });
-        InstallInstanceHook(settingsClass, @selector(didReceiveDrillDownItem:), ^id(IMP original, SEL selector) {
+        DeArrowInstallInstanceHook(settingsClass, @selector(didReceiveDrillDownItem:), ^id(IMP original, SEL selector) {
             return ^(id object, SEL command, id item) {
                 if (SettingsCategoryValue(item, 0).unsignedIntegerValue == DeArrowSettingsCategory) {
                     if (!PushCustomSettings(object, YES))

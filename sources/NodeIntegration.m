@@ -2,6 +2,7 @@
 
 #import <objc/runtime.h>
 
+#import "HookSupport.h"
 #import "IntegrationSupport.h"
 #import "Metadata.h"
 
@@ -41,72 +42,66 @@ static void AssociateNodeMetadata(id object, VideoMetadataRecord *metadata, NSUI
 
 static void InstallElementHook(Class targetClass) {
     SEL selector = @selector(setElement:);
-    Method method = class_getInstanceMethod(targetClass, selector);
-    if (!method)
-        return;
-    class_addMethod(targetClass, selector, method_getImplementation(method), method_getTypeEncoding(method));
-    method = class_getInstanceMethod(targetClass, selector);
-    IMP original = method_getImplementation(method);
-    id replacement = ^(id object, SEL command, id element) {
-        ((void (*)(id, SEL, id))original)(object, command, element);
-        ResetNodeBinding(object, 0);
-        VideoMetadataRecord *metadata = [VideoMetadataAdapters recordForNode:object];
-        if (metadata)
-            AssociateNodeMetadata(object, metadata, 0);
-        else
-            DeArrowBindingForObject(object, YES).metadataAttempted = YES;
-    };
-    method_setImplementation(method, imp_implementationWithBlock(replacement));
+    DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
+        return ^(id object, SEL selector, id element) {
+            ((void (*)(id, SEL, id))original)(object, selector, element);
+            ResetNodeBinding(object, 0);
+            VideoMetadataRecord *metadata = [VideoMetadataAdapters recordForNode:object];
+            if (metadata)
+                AssociateNodeMetadata(object, metadata, 0);
+            else
+                DeArrowBindingForObject(object, YES).metadataAttempted = YES;
+        };
+    });
 }
 
 static void InstallNodeAdditionHook(Class targetClass, SEL selector, BOOL indexed) {
-    Method method = class_getInstanceMethod(targetClass, selector);
-    if (!method)
-        return;
-    class_addMethod(targetClass, selector, method_getImplementation(method), method_getTypeEncoding(method));
-    method = class_getInstanceMethod(targetClass, selector);
-    IMP original = method_getImplementation(method);
     if (indexed) {
-        id replacement = ^(id object, SEL command, id child, NSUInteger index) {
-            ((void (*)(id, SEL, id, NSUInteger))original)(object, command, child, index);
-            DeArrowPropagateMetadata(object, child);
-        };
-        method_setImplementation(method, imp_implementationWithBlock(replacement));
+        DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
+            return ^(id object, SEL selector, id child, NSUInteger index) {
+                ((void (*)(id, SEL, id, NSUInteger))original)(object, selector, child, index);
+                DeArrowPropagateMetadata(object, child);
+            };
+        });
     } else {
-        id replacement = ^(id object, SEL command, id child) {
-            ((void (*)(id, SEL, id))original)(object, command, child);
-            DeArrowPropagateMetadata(object, child);
-        };
-        method_setImplementation(method, imp_implementationWithBlock(replacement));
+        DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
+            return ^(id object, SEL selector, id child) {
+                ((void (*)(id, SEL, id))original)(object, selector, child);
+                DeArrowPropagateMetadata(object, child);
+            };
+        });
     }
 }
 
 static void InstallNodeLoadHook(Class targetClass) {
     SEL selector = @selector(didLoad);
-    Method method = class_getInstanceMethod(targetClass, selector);
-    if (!method)
-        return;
-    class_addMethod(targetClass, selector, method_getImplementation(method), method_getTypeEncoding(method));
-    method = class_getInstanceMethod(targetClass, selector);
-    IMP original = method_getImplementation(method);
-    id replacement = ^(id object, SEL command) {
-        ((void (*)(id, SEL))original)(object, command);
-        if (!DeArrowStoredMetadataForObject(object)) {
-            VideoMetadataRecord *metadata = [VideoMetadataAdapters recordForNode:object];
-            if (metadata)
-                DeArrowAssociateMetadata(object, metadata);
-        }
-    };
-    method_setImplementation(method, imp_implementationWithBlock(replacement));
+    DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
+        return ^(id object, SEL selector) {
+            ((void (*)(id, SEL))original)(object, selector);
+            if (!DeArrowStoredMetadataForObject(object)) {
+                VideoMetadataRecord *metadata = [VideoMetadataAdapters recordForNode:object];
+                if (metadata)
+                    DeArrowAssociateMetadata(object, metadata);
+            }
+        };
+    });
 }
 
 void DeArrowInstallNodeIntegration(void) {
-    Class cellNodeClass = NSClassFromString(@"ELMCellNode");
-    if (!cellNodeClass)
-        cellNodeClass = NSClassFromString(@"YTVideoNode");
-    if (cellNodeClass) {
-        InstallElementHook(cellNodeClass);
-        InstallNodeLoadHook(cellNodeClass);
+    for (NSString *className in @[
+        @"ELMCellNode",
+        @"YTVideoNode",
+        @"YTVideoWithContextNode",
+        @"YTGridVideoNode",
+        @"YTShortsNode",
+        @"YTShortsVideoNode",
+        @"YTReelNode"
+    ]) {
+        Class cellNodeClass = NSClassFromString(className);
+        if (cellNodeClass) {
+            InstallElementHook(cellNodeClass);
+            InstallNodeLoadHook(cellNodeClass);
+        }
     }
     Class displayNodeClass = NSClassFromString(@"ASDisplayNode");
     if (displayNodeClass) {

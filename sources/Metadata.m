@@ -44,26 +44,32 @@ static id ExplicitValue(id object, NSString *key) {
     }
 }
 
-static NSString *TextFromValue(id value) {
+static NSString *TextFromValueAtDepth(id value, NSUInteger depth) {
+    if (depth > 4)
+        return nil;
     if ([value isKindOfClass:[NSString class]])
         return [value stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
     if ([value isKindOfClass:[NSAttributedString class]])
-        return [TextFromValue([(NSAttributedString *)value string]) copy];
+        return [TextFromValueAtDepth([(NSAttributedString *)value string], depth + 1) copy];
+    if ([value isKindOfClass:[NSURL class]])
+        return [(NSURL *)value absoluteString];
     if ([value isKindOfClass:[NSDictionary class]]) {
-        NSString *text = TextFromValue(value[@"text"]);
+        NSString *text = TextFromValueAtDepth(value[@"text"], depth + 1);
         if (text.length > 0)
             return text;
-        NSString *simpleText = TextFromValue(value[@"simpleText"]);
+        NSString *simpleText = TextFromValueAtDepth(value[@"simpleText"], depth + 1);
         if (simpleText.length > 0)
             return simpleText;
-        NSString *accessibility = TextFromValue(value[@"accessibility"]);
+        NSString *accessibility = TextFromValueAtDepth(value[@"accessibility"], depth + 1);
         if (accessibility.length > 0)
             return accessibility;
         NSArray *runs = value[@"runs"];
         if ([runs isKindOfClass:[NSArray class]]) {
             NSMutableString *text = [NSMutableString string];
-            for (id run in runs) {
-                NSString *runText = TextFromValue([run isKindOfClass:[NSDictionary class]] ? run[@"text"] : nil);
+            NSUInteger runCount = MIN(runs.count, 64);
+            for (NSUInteger index = 0; index < runCount; index++) {
+                id run = runs[index];
+                NSString *runText = TextFromValueAtDepth([run isKindOfClass:[NSDictionary class]] ? run[@"text"] : nil, depth + 1);
                 if (runText.length > 0)
                     [text appendString:runText];
             }
@@ -71,11 +77,15 @@ static NSString *TextFromValue(id value) {
         }
     }
     for (NSString *key in @[@"text", @"string", @"plainText", @"simpleText", @"accessibilityLabel"]) {
-        NSString *text = TextFromValue(ExplicitValue(value, key));
+        NSString *text = TextFromValueAtDepth(ExplicitValue(value, key), depth + 1);
         if (text.length > 0)
             return text;
     }
     return nil;
+}
+
+static NSString *TextFromValue(id value) {
+    return TextFromValueAtDepth(value, 0);
 }
 
 static NSString *ValueFromKeys(id object, NSArray<NSString *> *keys) {
@@ -83,6 +93,40 @@ static NSString *ValueFromKeys(id object, NSArray<NSString *> *keys) {
         NSString *value = TextFromValue(ExplicitValue(object, key));
         if (value.length > 0)
             return value;
+    }
+    return nil;
+}
+
+static NSString *VideoIDFromURLObject(id value) {
+    NSURL *URL = [value isKindOfClass:[NSURL class]] ? value : [NSURL URLWithString:TextFromValue(value) ?: @""];
+    if (!URL)
+        return nil;
+    NSURLComponents *components = [NSURLComponents componentsWithURL:URL resolvingAgainstBaseURL:NO];
+    for (NSURLQueryItem *item in components.queryItems) {
+        NSString *name = item.name.lowercaseString;
+        if ([name isEqualToString:@"v"] || [name isEqualToString:@"videoid"] || [name isEqualToString:@"video_id"]) {
+            NSString *candidate = ValidVideoID(item.value);
+            if (candidate)
+                return candidate;
+        }
+    }
+    NSArray *parts = [URL.path componentsSeparatedByString:@"/"];
+    for (NSUInteger index = 0; index + 1 < parts.count; index++) {
+        NSString *part = [parts[index] lowercaseString];
+        if ([part isEqualToString:@"vi"] || [part isEqualToString:@"vi_webp"] ||
+            [part isEqualToString:@"embed"] || [part isEqualToString:@"shorts"] ||
+            [part isEqualToString:@"live"]) {
+            NSString *candidate = ValidVideoID(parts[index + 1]);
+            if (candidate)
+                return candidate;
+        }
+    }
+    if ([URL.host.lowercaseString isEqualToString:@"youtu.be"]) {
+        for (NSInteger index = (NSInteger)parts.count - 1; index >= 0; index--) {
+            NSString *candidate = ValidVideoID(parts[(NSUInteger)index]);
+            if (candidate)
+                return candidate;
+        }
     }
     return nil;
 }
@@ -97,44 +141,14 @@ static NSString *VideoIDFromValue(id value) {
         if (candidate)
             return candidate;
     }
-    NSString *URLVideoID = nil;
-    NSString *text = TextFromValue(value);
-    NSURL *URL = [NSURL URLWithString:text ?: @""];
-    if (URL) {
-        NSURLComponents *components = [NSURLComponents componentsWithURL:URL resolvingAgainstBaseURL:NO];
-        for (NSURLQueryItem *item in components.queryItems) {
-            if ([item.name isEqualToString:@"v"] || [item.name isEqualToString:@"videoID"] || [item.name isEqualToString:@"video_id"]) {
-                URLVideoID = ValidVideoID(item.value);
-                if (URLVideoID)
-                    return URLVideoID;
-            }
-        }
-        NSArray *parts = [URL.path componentsSeparatedByString:@"/"];
-        for (NSUInteger index = 0; index + 1 < parts.count; index++) {
-            if ([parts[index] isEqualToString:@"vi"] || [parts[index] isEqualToString:@"vi_webp"] ||
-                [parts[index] isEqualToString:@"embed"] || [parts[index] isEqualToString:@"shorts"] ||
-                [parts[index] isEqualToString:@"live"]) {
-                URLVideoID = ValidVideoID(parts[index + 1]);
-                if (URLVideoID)
-                    return URLVideoID;
-            }
-        }
-        if ([URL.host.lowercaseString isEqualToString:@"youtu.be"]) {
-            for (NSInteger index = (NSInteger)parts.count - 1; index >= 0; index--) {
-                URLVideoID = ValidVideoID(parts[(NSUInteger)index]);
-                if (URLVideoID)
-                    return URLVideoID;
-            }
-        }
-    }
-    return nil;
+    return VideoIDFromURLObject(value);
 }
 
 static NSString *IDFromContainer(id container) {
     NSString *videoID = VideoIDFromValue(container);
     if (videoID)
         return videoID;
-    for (NSString *key in @[@"video", @"videoRenderer", @"compactVideoRenderer", @"richItemRenderer", @"navigationEndpoint", @"watchEndpoint", @"command", @"model"]) {
+    for (NSString *key in @[@"video", @"videoRenderer", @"videoWithContextRenderer", @"compactVideoRenderer", @"shortsVideoRenderer", @"reelItemRenderer", @"richItemRenderer", @"navigationEndpoint", @"watchEndpoint", @"command", @"model"]) {
         videoID = VideoIDFromValue(ExplicitValue(container, key));
         if (videoID)
             return videoID;
@@ -146,7 +160,7 @@ static NSString *TitleFromContainer(id container) {
     NSString *title = ValueFromKeys(container, @[@"title", @"videoTitle", @"headline", @"titleText", @"displayTitle"]);
     if (title.length > 0)
         return title;
-    for (NSString *key in @[@"video", @"videoRenderer", @"compactVideoRenderer", @"model"]) {
+    for (NSString *key in @[@"video", @"videoRenderer", @"videoWithContextRenderer", @"compactVideoRenderer", @"shortsVideoRenderer", @"reelItemRenderer", @"model"]) {
         title = ValueFromKeys(ExplicitValue(container, key), @[@"title", @"videoTitle", @"headline", @"titleText"]);
         if (title.length > 0)
             return title;
@@ -158,7 +172,7 @@ static NSString *ChannelFromContainer(id container) {
     NSString *channel = ValueFromKeys(container, @[@"channelName", @"channelTitle", @"ownerName", @"author", @"owner", @"shortBylineText", @"longBylineText"]);
     if (channel.length > 0)
         return channel;
-    for (NSString *key in @[@"video", @"videoRenderer", @"compactVideoRenderer", @"model"]) {
+    for (NSString *key in @[@"video", @"videoRenderer", @"videoWithContextRenderer", @"compactVideoRenderer", @"shortsVideoRenderer", @"reelItemRenderer", @"model"]) {
         channel = ValueFromKeys(ExplicitValue(container, key), @[@"channelName", @"channelTitle", @"ownerName", @"author", @"owner", @"shortBylineText", @"longBylineText"]);
         if (channel.length > 0)
             return channel;
@@ -205,69 +219,59 @@ static VideoMetadataRecord *RecordFromContainers(NSArray *containers) {
     return [[VideoMetadataRecord alloc] initWithVideoID:videoID title:title channel:channel];
 }
 
+static void AppendContainer(NSMutableArray *containers, id value) {
+    if (value)
+        [containers addObject:value];
+}
+
+static VideoMetadataRecord *RecordForElementsNode(id node) {
+    NSMutableArray *containers = [NSMutableArray arrayWithObject:node];
+    for (NSString *key in @[@"element", @"model", @"contentModel", @"data", @"properties", @"allProperties"])
+        AppendContainer(containers, ExplicitValue(node, key));
+    return RecordFromContainers(containers);
+}
+
+static VideoMetadataRecord *RecordForShortsNode(id node) {
+    NSMutableArray *containers = [NSMutableArray arrayWithObject:node];
+    for (NSString *key in @[@"shortsVideoRenderer", @"reelItemRenderer", @"video", @"videoRenderer", @"model", @"contentModel", @"navigationEndpoint"])
+        AppendContainer(containers, ExplicitValue(node, key));
+    return RecordFromContainers(containers);
+}
+
+static VideoMetadataRecord *RecordForYouTubeVideoNode(id node) {
+    NSMutableArray *containers = [NSMutableArray arrayWithObject:node];
+    for (NSString *key in @[@"video", @"videoRenderer", @"videoWithContextRenderer", @"compactVideoRenderer", @"model", @"contentModel", @"currentVideo", @"response", @"data"])
+        AppendContainer(containers, ExplicitValue(node, key));
+    return RecordFromContainers(containers);
+}
+
 @implementation VideoMetadataAdapters
 
 + (VideoMetadataRecord *)recordForNode:(id)node {
     if (!node)
         return nil;
     NSString *className = NSStringFromClass([node class]);
-    if (![className containsString:@"YTVideoNode"] &&
-        ![className containsString:@"YTVideoWithContextNode"] &&
-        ![className containsString:@"YTGridVideoNode"] &&
-        ![className containsString:@"Short"] &&
-        ![className containsString:@"Reel"] &&
-        ![className containsString:@"ELMCellNode"])
-        return [self recordForObject:node];
-
-    NSMutableArray *containers = [NSMutableArray arrayWithObject:node];
-    for (NSString *key in @[@"element", @"model", @"video", @"videoRenderer", @"contentModel", @"currentVideo", @"response", @"data"]) {
-        id value = ExplicitValue(node, key);
-        if (value)
-            [containers addObject:value];
-    }
-    return RecordFromContainers(containers);
+    NSString *lowercaseClassName = className.lowercaseString;
+    if ([lowercaseClassName containsString:@"elmcellnode"])
+        return RecordForElementsNode(node);
+    if ([lowercaseClassName containsString:@"short"] || [lowercaseClassName containsString:@"reel"])
+        return RecordForShortsNode(node);
+    if ([lowercaseClassName containsString:@"ytvideo"] || [lowercaseClassName containsString:@"gridvideo"])
+        return RecordForYouTubeVideoNode(node);
+    return [self recordForObject:node];
 }
 
 + (VideoMetadataRecord *)recordForObject:(id)object {
     if (!object)
         return nil;
     NSMutableArray *containers = [NSMutableArray arrayWithObject:object];
-    for (NSString *key in @[@"element", @"model", @"video", @"videoRenderer", @"navigationEndpoint", @"watchEndpoint", @"contentModel", @"currentVideo", @"data"]) {
-        id value = ExplicitValue(object, key);
-        if (value)
-            [containers addObject:value];
-    }
+    for (NSString *key in @[@"element", @"model", @"video", @"videoRenderer", @"videoWithContextRenderer", @"compactVideoRenderer", @"shortsVideoRenderer", @"reelItemRenderer", @"navigationEndpoint", @"watchEndpoint", @"contentModel", @"currentVideo", @"data"])
+        AppendContainer(containers, ExplicitValue(object, key));
     return RecordFromContainers(containers);
 }
 
 + (NSString *)videoIDFromURL:(id)value {
-    NSURL *URL = [value isKindOfClass:[NSURL class]] ? value : [NSURL URLWithString:TextFromValue(value) ?: @""];
-    if (!URL)
-        return nil;
-    NSURLComponents *components = [NSURLComponents componentsWithURL:URL resolvingAgainstBaseURL:NO];
-    for (NSURLQueryItem *item in components.queryItems) {
-        if ([item.name isEqualToString:@"v"] || [item.name isEqualToString:@"videoID"] || [item.name isEqualToString:@"video_id"]) {
-            NSString *candidate = ValidVideoID(item.value);
-            if (candidate)
-                return candidate;
-        }
-    }
-    NSArray *parts = [URL.path componentsSeparatedByString:@"/"];
-    for (NSUInteger index = 0; index + 1 < parts.count; index++) {
-        if ([parts[index] isEqualToString:@"vi"] || [parts[index] isEqualToString:@"vi_webp"] || [parts[index] isEqualToString:@"embed"]) {
-            NSString *candidate = ValidVideoID(parts[index + 1]);
-            if (candidate)
-                return candidate;
-        }
-    }
-    if ([URL.host.lowercaseString isEqualToString:@"youtu.be"]) {
-        for (NSInteger index = (NSInteger)parts.count - 1; index >= 0; index--) {
-            NSString *candidate = ValidVideoID(parts[(NSUInteger)index]);
-            if (candidate)
-                return candidate;
-        }
-    }
-    return nil;
+    return VideoIDFromURLObject(value);
 }
 
 @end

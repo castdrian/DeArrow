@@ -135,7 +135,7 @@ VideoMetadataRecord *DeArrowMetadataFromParents(id object) {
     id current = object;
     NSString *className = NSStringFromClass([object class]);
     BOOL nodeObject = [className containsString:@"Node"];
-    for (NSUInteger depth = 0; depth < 12; depth++) {
+    for (NSUInteger depth = 0; depth < 8; depth++) {
         id parent;
         if (nodeObject && [current respondsToSelector:@selector(yogaParent)])
             parent = ExplicitValue(current, @"yogaParent");
@@ -148,14 +148,7 @@ VideoMetadataRecord *DeArrowMetadataFromParents(id object) {
             return metadata;
         current = parent;
     }
-    if ([object respondsToSelector:NSSelectorFromString(@"_viewControllerForAncestor")]) {
-        UIViewController *viewController = ((id (*)(id, SEL))objc_msgSend)(object, NSSelectorFromString(@"_viewControllerForAncestor"));
-        metadata = DeArrowStoredMetadataForObject(viewController);
-        if (metadata)
-            return metadata;
-        metadata = DeArrowMetadataForObject(viewController);
-    }
-    return metadata;
+    return nil;
 }
 
 void DeArrowCancelBinding(id object) {

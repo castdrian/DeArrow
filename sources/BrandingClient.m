@@ -12,15 +12,28 @@
 
 @interface BrandingRequestToken ()
 @property(nonatomic, copy) dispatch_block_t cancellation;
+@property(nonatomic) BOOL cancelled;
 @end
 
 @implementation BrandingRequestToken
 
 - (void)cancel {
-    dispatch_block_t cancellation = self.cancellation;
-    self.cancellation = nil;
+    dispatch_block_t cancellation;
+    @synchronized (self) {
+        if (self.cancelled)
+            return;
+        self.cancelled = YES;
+        cancellation = [self.cancellation copy];
+        self.cancellation = nil;
+    }
     if (cancellation)
         cancellation();
+}
+
+- (BOOL)isCancelled {
+    @synchronized (self) {
+        return self.cancelled;
+    }
 }
 
 - (void)dealloc {
@@ -31,7 +44,7 @@
 
 @interface BrandingWaiter : NSObject
 @property(nonatomic, copy) BrandingCompletion completion;
-@property(nonatomic, weak) BrandingRequestToken *token;
+@property(nonatomic, strong) BrandingRequestToken *token;
 @end
 
 @implementation BrandingWaiter
@@ -39,7 +52,7 @@
 
 @interface ThumbnailWaiter : NSObject
 @property(nonatomic, copy) ThumbnailCompletion completion;
-@property(nonatomic, weak) BrandingRequestToken *token;
+@property(nonatomic, strong) BrandingRequestToken *token;
 @end
 
 @implementation ThumbnailWaiter
@@ -190,12 +203,13 @@ static NSURLRequest *BrandingRequest(NSURL *URL, NSString *accept, NSTimeInterva
     };
 
     dispatch_async(self.stateQueue, ^{
+        if (token.cancelled)
+            return;
         BrandingCacheEntry *entry = [self.cache objectForKey:validID];
         if (entry.expiresAt.timeIntervalSinceNow > 0) {
             BrandingRecord *record = entry.record;
             dispatch_async(dispatch_get_main_queue(), ^{
-                BrandingRequestToken *strongToken = weakToken;
-                if (strongToken && strongToken.cancellation)
+                if (!token.cancelled)
                     completion(record, nil);
             });
             return;
@@ -275,10 +289,10 @@ static NSURLRequest *BrandingRequest(NSURL *URL, NSString *accept, NSTimeInterva
         for (BrandingWaiter *waiter in waiters) {
             BrandingCompletion completion = waiter.completion;
             BrandingRequestToken *token = waiter.token;
-            if (!completion || !token.cancellation)
+            if (!completion || token.cancelled)
                 continue;
             dispatch_async(dispatch_get_main_queue(), ^{
-                if (token.cancellation)
+                if (!token.cancelled)
                     completion(record, resultError);
             });
         }
@@ -319,11 +333,12 @@ static NSURLRequest *BrandingRequest(NSURL *URL, NSString *accept, NSTimeInterva
     };
 
     dispatch_async(self.stateQueue, ^{
+        if (token.cancelled)
+            return;
         UIImage *cachedImage = [self.thumbnailCache objectForKey:validID];
         if (cachedImage) {
             dispatch_async(dispatch_get_main_queue(), ^{
-                BrandingRequestToken *strongToken = weakToken;
-                if (strongToken && strongToken.cancellation)
+                if (!token.cancelled)
                     completion(cachedImage, nil);
             });
             return;
@@ -373,10 +388,10 @@ static NSURLRequest *BrandingRequest(NSURL *URL, NSString *accept, NSTimeInterva
         for (ThumbnailWaiter *waiter in waiters) {
             ThumbnailCompletion completion = waiter.completion;
             BrandingRequestToken *token = waiter.token;
-            if (!completion || !token.cancellation)
+            if (!completion || token.cancelled)
                 continue;
             dispatch_async(dispatch_get_main_queue(), ^{
-                if (token.cancellation)
+                if (!token.cancelled)
                     completion(image, resultError);
             });
         }
@@ -385,6 +400,14 @@ static NSURLRequest *BrandingRequest(NSURL *URL, NSString *accept, NSTimeInterva
 
 - (void)clearCache {
     dispatch_async(self.stateQueue, ^{
+        for (NSArray<BrandingWaiter *> *waiters in self.waiters.allValues) {
+            for (BrandingWaiter *waiter in waiters)
+                [waiter.token cancel];
+        }
+        for (NSArray<ThumbnailWaiter *> *waiters in self.thumbnailWaiters.allValues) {
+            for (ThumbnailWaiter *waiter in waiters)
+                [waiter.token cancel];
+        }
         for (NSURLSessionDataTask *task in self.tasks.allValues)
             [task cancel];
         [self.tasks removeAllObjects];
