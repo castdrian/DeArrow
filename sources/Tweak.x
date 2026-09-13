@@ -7,7 +7,6 @@
 
 static void DeArrowInstallIntegrations(void) {
     DeArrowInstallNodeIntegration();
-    DeArrowInstallTitleIntegration();
     DeArrowInstallThumbnailIntegration();
     DeArrowInstallSettingsIntegration();
 }

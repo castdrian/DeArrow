@@ -5,6 +5,7 @@
 #import "HookSupport.h"
 #import "IntegrationSupport.h"
 #import "Metadata.h"
+#import "TitleIntegration.h"
 
 static NSArray *NodeChildren(id object) {
     if (!object || ![object respondsToSelector:NSSelectorFromString(@"yogaChildren")])
@@ -47,30 +48,13 @@ static void InstallElementHook(Class targetClass) {
             ((void (*)(id, SEL, id))original)(object, selector, element);
             ResetNodeBinding(object, 0);
             VideoMetadataRecord *metadata = [VideoMetadataAdapters recordForNode:object];
-            if (metadata)
+            if (metadata) {
                 AssociateNodeMetadata(object, metadata, 0);
-            else
+                DeArrowRefreshTitleTree(object);
+            } else
                 DeArrowBindingForObject(object, YES).metadataAttempted = YES;
         };
     });
-}
-
-static void InstallNodeAdditionHook(Class targetClass, SEL selector, BOOL indexed) {
-    if (indexed) {
-        DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
-            return ^(id object, SEL selector, id child, NSUInteger index) {
-                ((void (*)(id, SEL, id, NSUInteger))original)(object, selector, child, index);
-                DeArrowPropagateMetadata(object, child);
-            };
-        });
-    } else {
-        DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
-            return ^(id object, SEL selector, id child) {
-                ((void (*)(id, SEL, id))original)(object, selector, child);
-                DeArrowPropagateMetadata(object, child);
-            };
-        });
-    }
 }
 
 static void InstallNodeLoadHook(Class targetClass) {
@@ -80,8 +64,10 @@ static void InstallNodeLoadHook(Class targetClass) {
             ((void (*)(id, SEL))original)(object, selector);
             if (!DeArrowStoredMetadataForObject(object)) {
                 VideoMetadataRecord *metadata = [VideoMetadataAdapters recordForNode:object];
-                if (metadata)
+                if (metadata) {
                     DeArrowAssociateMetadata(object, metadata);
+                    DeArrowRefreshTitleTree(object);
+                }
             }
         };
     });
@@ -102,10 +88,5 @@ void DeArrowInstallNodeIntegration(void) {
             InstallElementHook(cellNodeClass);
             InstallNodeLoadHook(cellNodeClass);
         }
-    }
-    Class displayNodeClass = NSClassFromString(@"ASDisplayNode");
-    if (displayNodeClass) {
-        InstallNodeAdditionHook(displayNodeClass, @selector(addSubnode:), NO);
-        InstallNodeAdditionHook(displayNodeClass, @selector(insertYogaChild:atIndex:), YES);
     }
 }

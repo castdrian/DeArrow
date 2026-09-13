@@ -130,14 +130,6 @@ static void BindRelatedLabels(UIView *imageView, NSString *videoID) {
     binding.relatedViewsBound = YES;
 }
 
-static NSArray *ThumbnailURLValues(id URLs) {
-    if ([URLs isKindOfClass:[NSDictionary class]])
-        return [(NSDictionary *)URLs allValues];
-    if ([URLs isKindOfClass:[NSArray class]])
-        return URLs;
-    return nil;
-}
-
 static void InstallImageNodeSetter(Class targetClass) {
     SEL selector = @selector(setImage:);
     DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
@@ -150,41 +142,6 @@ static void InstallImageNodeSetter(Class targetClass) {
             }
             if (!binding.applyingThumbnail)
                 ApplyThumbnailToObject(object, NO);
-        };
-    });
-}
-
-static void InstallImageLoadCallback(Class targetClass) {
-    SEL selector = @selector(imageNode:didLoadImage:);
-    DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
-        return ^(id object, SEL selector, id node, UIImage *image) {
-            ((void (*)(id, SEL, id, UIImage *))original)(object, selector, node, image);
-            BrandingBinding *binding = DeArrowBindingForObject(node, YES);
-            binding.originalImage = image;
-            BrandingBinding *objectBinding = DeArrowBindingForObject(object, YES);
-            objectBinding.originalImage = image;
-            ApplyThumbnailToObject(object, NO);
-        };
-    });
-}
-
-static void InstallThumbnailControllerInitializer(Class targetClass) {
-    SEL selector = NSSelectorFromString(@"initWithImageView:URLs:imageService:");
-    DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
-        return ^id(id object, SEL selector, UIView *imageView, NSDictionary *URLs, id imageService) {
-            id result = ((id (*)(id, SEL, UIView *, NSDictionary *, id))original)(object, selector, imageView, URLs, imageService);
-            NSString *videoID;
-            for (id value in ThumbnailURLValues(URLs)) {
-                videoID = [VideoMetadataAdapters videoIDFromURL:value];
-                if (videoID.length)
-                    break;
-            }
-            if (videoID.length) {
-                DeArrowAssociateVideoID(result, videoID);
-                DeArrowAssociateVideoID(imageView, videoID);
-                BindRelatedLabels(imageView, videoID);
-            }
-            return result;
         };
     });
 }
@@ -215,53 +172,13 @@ static void InstallImageViewSetter(Class targetClass) {
     });
 }
 
-static void InstallReuseCancellation(Class targetClass) {
-    SEL selector = @selector(prepareForReuse);
-    DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
-        return ^(id object, SEL selector) {
-            ((void (*)(id, SEL))original)(object, selector);
-            DeArrowCancelBinding(object);
-        };
-    });
-}
-
-static void InstallWindowCancellation(Class targetClass) {
-    SEL selector = @selector(didMoveToWindow);
-    DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
-        return ^(id object, SEL selector) {
-            ((void (*)(id, SEL))original)(object, selector);
-            if (![object window])
-                DeArrowCancelBinding(object);
-        };
-    });
-}
-
 void DeArrowInstallThumbnailIntegration(void) {
-    for (NSString *className in @[@"ELMImageNode", @"ASNetworkImageNode", @"ASImageNode"]) {
+    for (NSString *className in @[@"ASImageNode"]) {
         Class imageNodeClass = NSClassFromString(className);
-        if (imageNodeClass) {
+        if (imageNodeClass)
             InstallImageNodeSetter(imageNodeClass);
-            InstallImageLoadCallback(imageNodeClass);
-        }
     }
-    Class thumbnailControllerClass = NSClassFromString(@"YTThumbnailController");
-    if (thumbnailControllerClass)
-        InstallThumbnailControllerInitializer(thumbnailControllerClass);
     Class imageViewClass = NSClassFromString(@"YTImageView");
-    if (imageViewClass) {
+    if (imageViewClass)
         InstallImageViewSetter(imageViewClass);
-        InstallWindowCancellation(imageViewClass);
-    }
-    InstallReuseCancellation([UICollectionViewCell class]);
-    for (NSString *className in @[@"ELMCellNode", @"YTVideoNode", @"YTVideoWithContextNode", @"YTShortsNode", @"YTReelNode"])
-        InstallReuseCancellation(NSClassFromString(className));
-    static dispatch_once_t notificationToken;
-    dispatch_once(&notificationToken, ^{
-        [[NSNotificationCenter defaultCenter] addObserverForName:DeArrowPreferencesDidChangeNotification
-                                                            object:nil
-                                                             queue:[NSOperationQueue mainQueue]
-                                                        usingBlock:^(__unused NSNotification *notification) {
-            DeArrowRefreshThumbnailObjects();
-        }];
-    });
 }

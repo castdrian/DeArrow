@@ -90,72 +90,50 @@ void DeArrowRefreshTitleObject(id object) {
     RequestTitle(object, binding);
 }
 
-static void HandleAttributedText(id object, SEL selector, NSAttributedString *value, IMP original) {
+static NSArray *TitleChildren(id object) {
+    if (!object || ![object respondsToSelector:NSSelectorFromString(@"yogaChildren")])
+        return nil;
+    @try {
+        id children = [object valueForKey:@"yogaChildren"];
+        if ([children isKindOfClass:[NSArray class]])
+            return children;
+    } @catch (__unused NSException *exception) {
+    }
+    return nil;
+}
+
+static BOOL IsTitleObject(id object) {
+    return object && [object respondsToSelector:@selector(attributedText)] &&
+        [object respondsToSelector:@selector(setAttributedText:)];
+}
+
+static void CaptureTitleObject(id object, VideoMetadataRecord *metadata) {
+    if (!IsTitleObject(object) || !metadata.videoID.length)
+        return;
+    DeArrowAssociateMetadata(object, metadata);
     BrandingBinding *binding = DeArrowBindingForObject(object, YES);
-    if (binding.applyingTitle) {
-        ((void (*)(id, SEL, NSAttributedString *))original)(object, selector, value);
-        return;
+    if (!binding.originalTitle) {
+        NSAttributedString *value = [object attributedText];
+        if (value.length)
+            binding.originalTitle = [value copy];
     }
-    VideoMetadataRecord *metadata = TitleMetadata(object);
-    if (!metadata || !metadata.videoID.length) {
-        ((void (*)(id, SEL, NSAttributedString *))original)(object, selector, value);
-        return;
+    if (binding.originalTitle.length) {
+        DeArrowRegisterTitleObject(object);
+        DeArrowRefreshTitleObject(object);
     }
-    if (value)
-        binding.originalTitle = [value copy];
-    DeArrowRegisterTitleObject(object);
-    DeArrowPreferences *preferences = [DeArrowPreferences sharedPreferences];
-    BrandingRecord *record = preferences.isEnabled && preferences.titlePreference == DeArrowTitlePreferenceDeArrow
-        ? [[BrandingClient sharedClient] cachedBrandingForVideoID:metadata.videoID]
-        : nil;
-    NSAttributedString *replacement = record.title.length && binding.originalTitle.length
-        ? AttributedTitleWithString(binding.originalTitle, record.title)
-        : value;
-    ((void (*)(id, SEL, NSAttributedString *))original)(object, selector, replacement);
-    RequestTitle(object, binding);
 }
 
-static void InstallAttributedTextHook(Class targetClass) {
-    SEL selector = @selector(setAttributedText:);
-    DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
-        return ^(id object, SEL selector, NSAttributedString *value) {
-            HandleAttributedText(object, selector, value, original);
-        };
-    });
-}
-
-static void InstallPlayerVideoGetter(Class targetClass, SEL selector) {
-    DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
-        return ^id(id object, SEL selector) {
-            id result = ((id (*)(id, SEL))original)(object, selector);
-            VideoMetadataRecord *metadata = [VideoMetadataAdapters recordForObject:result];
-            if (!metadata && [result isKindOfClass:[NSString class]]) {
-                NSString *videoID = [VideoMetadataAdapters videoIDFromURL:result];
-                if (!videoID.length && [(NSString *)result length] == 11)
-                    videoID = (NSString *)result;
-                if (videoID.length)
-                    metadata = [[VideoMetadataRecord alloc] initWithVideoID:videoID title:nil channel:nil];
-            }
-            if (metadata)
-                DeArrowAssociateMetadata(object, metadata);
-            return result;
-        };
-    });
+void DeArrowRefreshTitleTree(id object) {
+    if (!object)
+        return;
+    VideoMetadataRecord *metadata = DeArrowStoredMetadataForObject(object);
+    if (!metadata)
+        return;
+    for (id child in TitleChildren(object)) {
+        CaptureTitleObject(child, metadata);
+        DeArrowRefreshTitleTree(child);
+    }
 }
 
 void DeArrowInstallTitleIntegration(void) {
-    for (NSString *className in @[@"ELMTextNode", @"ASTextNode", @"YTFormattedStringLabel"]) {
-        Class textClass = NSClassFromString(className);
-        if (textClass)
-            InstallAttributedTextHook(textClass);
-    }
-
-    for (NSString *className in @[@"YTPlayerViewController", @"YTReelPlayerViewController", @"YTShortsPlayerViewController"]) {
-        Class playerClass = NSClassFromString(className);
-        if (!playerClass)
-            continue;
-        InstallPlayerVideoGetter(playerClass, NSSelectorFromString(@"currentVideoID"));
-        InstallPlayerVideoGetter(playerClass, NSSelectorFromString(@"contentVideoID"));
-        InstallPlayerVideoGetter(playerClass, NSSelectorFromString(@"videoId"));
-    }
 }
