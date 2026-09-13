@@ -1,12 +1,14 @@
 #import <UIKit/UIKit.h>
 
 #import "NodeIntegration.h"
+#import "SettingsIntegration.h"
 #import "ThumbnailIntegration.h"
 #import "TitleIntegration.h"
 
 static void DeArrowInstallIntegrations(void)
 {
     DeArrowInstallNodeIntegration();
+    DeArrowInstallSettingsIntegration();
     DeArrowInstallThumbnailIntegration();
     DeArrowInstallTitleIntegration();
 }

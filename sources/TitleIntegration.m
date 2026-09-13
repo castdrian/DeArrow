@@ -335,12 +335,6 @@ static void InstallTitleLabelHook(Class targetClass, SEL selector, BOOL plainTex
 
 void DeArrowInstallTitleIntegration(void)
 {
-    for (NSString *className in @[ @"ELMTextNode" ])
-    {
-        Class textClass = NSClassFromString(className);
-        if (textClass)
-            InstallTitleLabelHook(textClass, @selector(setAttributedText:), NO);
-    }
     Class titleLabelClass = NSClassFromString(@"YTFormattedStringLabel");
     if (titleLabelClass)
         InstallTitleLabelHook(titleLabelClass, @selector(setText:), YES);
