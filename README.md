@@ -42,6 +42,11 @@ gmake package FINALPACKAGE=1
 
 The package is written to `packages/`.
 
+## Testing
+
+Run the deterministic fixture suite with `go test ./...`. Run `go run ./scripts/branding-smoke` to validate the live DeArrow records used by the fixture matrix, including neutral long-form, penguinz0 commentary and bodycam videos, and a Shorts URL with no listing.
+
+
 ## Privacy and network behavior
 
 DeArrow does not intercept YouTube networking or collect telemetry. It contacts the public DeArrow and SponsorBlock branding services by video ID, caches successful and negative responses, and silently keeps YouTube’s original title or thumbnail when a request fails.

@@ -1,72 +1,80 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 
-@interface ASDisplayNode : NSObject
-@property(nonatomic, weak) ASDisplayNode *yogaParent;
+@interface                                 ASDisplayNode : NSObject
+@property (nonatomic, weak) ASDisplayNode *yogaParent;
 - (void)addSubnode:(id)subnode;
 - (void)insertYogaChild:(id)child atIndex:(NSUInteger)index;
 @end
 
-@interface ELMCellNode : ASDisplayNode
-@property(nonatomic, strong) id element;
+@interface                       ELMCellNode : ASDisplayNode
+@property (nonatomic, strong) id element;
 @end
 
-@interface ASImageNode : ASDisplayNode
-@property(nonatomic, strong) UIImage *image;
+@interface                             ASImageNode : ASDisplayNode
+@property (nonatomic, strong) UIImage *image;
 @end
 
 @interface ELMImageNode : ASImageNode
 - (void)imageNode:(id)node didLoadImage:(UIImage *)image;
 @end
 
-@interface ASTextNode : ASDisplayNode
-@property(nonatomic, copy) NSAttributedString *attributedText;
+@interface                                      ASTextNode : ASDisplayNode
+@property (nonatomic, copy) NSAttributedString *attributedText;
 @end
 
-@interface ELMTextNode : ASTextNode
-@property(nonatomic, strong) id element;
+@interface                       ELMTextNode : ASTextNode
+@property (nonatomic, strong) id element;
 @end
 
 @interface YTFormattedStringLabel : UILabel
 @end
 
 @interface YTThumbnailController : NSObject
-- (instancetype)initWithImageView:(id)imageView URLs:(NSDictionary *)URLs imageService:(id)imageService;
+- (instancetype)initWithImageView:(id)imageView
+                             URLs:(NSDictionary *)URLs
+                     imageService:(id)imageService;
 @end
 
-@interface YTImageView : UIView
-@property(nonatomic, weak) id delegate;
+@interface                     YTImageView : UIView
+@property (nonatomic, weak) id delegate;
 - (void)setImage:(UIImage *)image animated:(BOOL)animated;
 @end
 
 @interface YTSettingsCell : UITableViewCell
 @end
 
-@interface YTIIcon : NSObject
-@property(nonatomic) NSInteger iconType;
+@interface                      YTIIcon : NSObject
+@property (nonatomic) NSInteger iconType;
+- (UIImage *)iconImageWithColor:(UIColor *)color;
+- (UIImage *)iconImageWithSelected:(BOOL)selected;
 @end
 
 @interface YTSettingsSectionItem : NSObject
 + (instancetype)itemWithTitle:(NSString *)title
              titleDescription:(NSString *)titleDescription
       accessibilityIdentifier:(NSString *)accessibilityIdentifier
-              detailTextBlock:(NSString *(^)(void))detailTextBlock
+              detailTextBlock:(NSString * (^)(void) )detailTextBlock
                   selectBlock:(BOOL (^)(YTSettingsCell *, NSUInteger))selectBlock;
 + (instancetype)itemWithTitle:(NSString *)title
              titleDescription:(NSString *)titleDescription
       accessibilityIdentifier:(NSString *)accessibilityIdentifier
-              detailTextBlock:(NSString *(^)(void))detailTextBlock
+              detailTextBlock:(NSString * (^)(void) )detailTextBlock
                   selectBlock:(BOOL (^)(YTSettingsCell *, NSUInteger))selectBlock
-                 settingItemId:(NSUInteger)settingItemId;
+                settingItemId:(NSUInteger)settingItemId;
 @end
 
 @interface YTSettingsSectionItemManager : NSObject
+- (instancetype)initWithParentResponder:(id)parentResponder
+                      controllerDelegate:(id)controllerDelegate
+                            dataDelegate:(id)dataDelegate
+             settingsViewControllerDelegate:(id)settingsViewControllerDelegate;
 - (id)parentResponder;
 - (void)updateSectionForCategory:(NSUInteger)category withEntry:(id)entry;
 @end
 
-@interface YTSettingsGroupData : NSObject
-@property(nonatomic, readonly) NSUInteger type;
+@interface                                 YTSettingsGroupData : NSObject
+@property (nonatomic, readonly) NSUInteger type;
 - (instancetype)initWithGroupType:(NSUInteger)groupType;
 - (NSArray<NSNumber *> *)orderedCategories;
 - (NSArray<NSNumber *> *)orderedCategoriesForGroupType:(NSUInteger)type;
@@ -78,7 +86,7 @@
 - (void)setSectionItems:(NSMutableArray *)items
             forCategory:(NSInteger)category
                   title:(NSString *)title
-                  icon:(YTIIcon *)icon
+                   icon:(YTIIcon *)icon
        titleDescription:(NSString *)titleDescription
            headerHidden:(BOOL)headerHidden;
 - (void)setSectionItems:(NSMutableArray *)items
@@ -93,6 +101,17 @@
 - (void)showOrPushViewController:(UIViewController *)viewController;
 - (void)showViewController:(UIViewController *)viewController sender:(id)sender;
 - (void)reloadData;
+@end
+
+@interface YTNavigationController : UINavigationController
+@end
+
+@interface YTWrapperSplitViewController : UIViewController
+- (void)setSecondViewController:(UIViewController *)viewController;
+@end
+
+@interface YTAppSettingsSectionItemActionController : NSObject
+- (void)displaySettingsViewController:(UIViewController *)viewController;
 @end
 
 @interface YTAppSettingsGroupPresentationData : NSObject

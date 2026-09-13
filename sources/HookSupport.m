@@ -1,34 +1,36 @@
 #import "HookSupport.h"
 
-static NSMutableSet *DeArrowInstalledHooks(void) {
-    static NSMutableSet *hooks;
+static NSMutableSet *DeArrowInstalledHooks(void)
+{
+    static NSMutableSet   *hooks;
     static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        hooks = [NSMutableSet set];
-    });
+    dispatch_once(&onceToken, ^{ hooks = [NSMutableSet set]; });
     return hooks;
 }
 
-static NSString *DeArrowHookKey(Class targetClass, SEL selector, BOOL classMethod) {
-    return [NSString stringWithFormat:@"%p:%@:%@", targetClass, NSStringFromSelector(selector), classMethod ? @"class" : @"instance"];
+static NSString *DeArrowHookKey(Class targetClass, SEL selector, BOOL classMethod)
+{
+    return [NSString stringWithFormat:@"%p:%@:%@", targetClass, NSStringFromSelector(selector),
+                                      classMethod ? @"class" : @"instance"];
 }
 
-static BOOL DeArrowInstallHook(Class targetClass, SEL selector, DeArrowHookBuilder builder, BOOL classMethod) {
+static BOOL DeArrowInstallHook(Class targetClass, SEL selector, DeArrowHookBuilder builder,
+                               BOOL classMethod)
+{
     if (!targetClass || !selector || !builder)
         return NO;
     Class methodClass = classMethod ? object_getClass(targetClass) : targetClass;
     if (!methodClass)
         return NO;
     NSString *key = DeArrowHookKey(targetClass, selector, classMethod);
-    @synchronized (DeArrowInstalledHooks()) {
+    @synchronized(DeArrowInstalledHooks())
+    {
         if ([DeArrowInstalledHooks() containsObject:key])
             return NO;
         Method inheritedMethod = class_getInstanceMethod(methodClass, selector);
         if (!inheritedMethod)
             return NO;
-        class_addMethod(methodClass,
-                        selector,
-                        method_getImplementation(inheritedMethod),
+        class_addMethod(methodClass, selector, method_getImplementation(inheritedMethod),
                         method_getTypeEncoding(inheritedMethod));
         Method method = class_getInstanceMethod(methodClass, selector);
         if (!method)
@@ -45,10 +47,12 @@ static BOOL DeArrowInstallHook(Class targetClass, SEL selector, DeArrowHookBuild
     }
 }
 
-BOOL DeArrowInstallInstanceHook(Class targetClass, SEL selector, DeArrowHookBuilder builder) {
+BOOL DeArrowInstallInstanceHook(Class targetClass, SEL selector, DeArrowHookBuilder builder)
+{
     return DeArrowInstallHook(targetClass, selector, builder, NO);
 }
 
-BOOL DeArrowInstallClassHook(Class targetClass, SEL selector, DeArrowHookBuilder builder) {
+BOOL DeArrowInstallClassHook(Class targetClass, SEL selector, DeArrowHookBuilder builder)
+{
     return DeArrowInstallHook(targetClass, selector, builder, YES);
 }

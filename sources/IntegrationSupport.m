@@ -6,108 +6,125 @@
 
 #import "BrandingClient.h"
 #import "Preferences.h"
-#import "TitleIntegration.h"
 #import "ThumbnailIntegration.h"
+#import "TitleIntegration.h"
 
 @implementation BrandingBinding
 @end
 
 static void *BrandingBindingKey = &BrandingBindingKey;
 
-static NSHashTable *TitleObjects(void) {
-    static NSHashTable *objects;
+static NSHashTable *TitleObjects(void)
+{
+    static NSHashTable    *objects;
     static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        objects = [NSHashTable weakObjectsHashTable];
-    });
+    dispatch_once(&onceToken, ^{ objects = [NSHashTable weakObjectsHashTable]; });
     return objects;
 }
 
-static NSHashTable *ThumbnailObjects(void) {
-    static NSHashTable *objects;
+static NSHashTable *ThumbnailObjects(void)
+{
+    static NSHashTable    *objects;
     static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        objects = [NSHashTable weakObjectsHashTable];
-    });
+    dispatch_once(&onceToken, ^{ objects = [NSHashTable weakObjectsHashTable]; });
     return objects;
 }
 
-BrandingBinding *DeArrowBindingForObject(id object, BOOL create) {
+static void CaptureOriginalVisuals(id object, BrandingBinding *binding)
+{
+    if (!object || !binding)
+        return;
+    if (!binding.originalImage && [object respondsToSelector:@selector(image)])
+    {
+        id image = [object image];
+        if ([image isKindOfClass:[UIImage class]])
+            binding.originalImage = image;
+    }
+    if (!binding.originalTitle && [object respondsToSelector:@selector(attributedText)])
+        binding.originalTitle = [[object attributedText] copy];
+}
+
+BrandingBinding *DeArrowBindingForObject(id object, BOOL create)
+{
     if (!object)
         return nil;
     BrandingBinding *binding = objc_getAssociatedObject(object, BrandingBindingKey);
-    if (!binding && create) {
+    if (!binding && create)
+    {
         binding = [BrandingBinding new];
-        objc_setAssociatedObject(object, BrandingBindingKey, binding, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        objc_setAssociatedObject(object, BrandingBindingKey, binding,
+                                 OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     return binding;
 }
 
-VideoMetadataRecord *DeArrowStoredMetadataForObject(id object) {
+VideoMetadataRecord *DeArrowStoredMetadataForObject(id object)
+{
     return DeArrowBindingForObject(object, NO).metadata;
 }
 
-void DeArrowAssociateMetadata(id object, VideoMetadataRecord *metadata) {
+void DeArrowAssociateMetadata(id object, VideoMetadataRecord *metadata)
+{
     if (!object || !metadata.videoID.length)
         return;
     BrandingBinding *binding = DeArrowBindingForObject(object, YES);
-    if ([binding.metadata.videoID isEqualToString:metadata.videoID]) {
-        NSString *title = metadata.title.length ? metadata.title : binding.metadata.title;
+    if ([binding.metadata.videoID isEqualToString:metadata.videoID])
+    {
+        NSString *title   = metadata.title.length ? metadata.title : binding.metadata.title;
         NSString *channel = metadata.channel.length ? metadata.channel : binding.metadata.channel;
-        if (![binding.metadata.title isEqualToString:title] || ![binding.metadata.channel isEqualToString:channel])
-            binding.metadata = [[VideoMetadataRecord alloc] initWithVideoID:metadata.videoID title:title channel:channel];
+        if (![binding.metadata.title isEqualToString:title] ||
+            ![binding.metadata.channel isEqualToString:channel])
+            binding.metadata = [[VideoMetadataRecord alloc] initWithVideoID:metadata.videoID
+                                                                      title:title
+                                                                    channel:channel];
         binding.metadataAttempted = YES;
+        if (NSThread.isMainThread)
+            CaptureOriginalVisuals(object, binding);
         return;
     }
     [binding.brandingToken cancel];
     [binding.thumbnailBrandingToken cancel];
     [binding.thumbnailToken cancel];
-    binding.brandingToken = nil;
-    binding.thumbnailBrandingToken = nil;
-    binding.thumbnailToken = nil;
-    binding.originalTitle = nil;
-    binding.originalImage = nil;
-    binding.brandingResolved = NO;
-    binding.thumbnailBrandingResolved = NO;
-    binding.thumbnailResolved = NO;
-    binding.brandingRetryTime = 0.0;
+    binding.brandingToken              = nil;
+    binding.thumbnailBrandingToken     = nil;
+    binding.thumbnailToken             = nil;
+    binding.originalTitle              = nil;
+    binding.originalImage              = nil;
+    binding.brandingResolved           = NO;
+    binding.thumbnailBrandingResolved  = NO;
+    binding.thumbnailResolved          = NO;
+    binding.brandingRetryTime          = 0.0;
     binding.thumbnailBrandingRetryTime = 0.0;
-    binding.thumbnailRetryTime = 0.0;
-    binding.relatedViewsBound = NO;
+    binding.thumbnailRetryTime         = 0.0;
+    binding.relatedViewsBound          = NO;
     binding.generation += 1;
-    binding.metadata = [metadata copy];
+    binding.metadata          = [metadata copy];
     binding.metadataAttempted = YES;
+    if (NSThread.isMainThread)
+        CaptureOriginalVisuals(object, binding);
 }
 
-void DeArrowAssociateVideoID(id object, NSString *videoID) {
+void DeArrowAssociateVideoID(id object, NSString *videoID)
+{
     if (videoID.length == 0)
         return;
     VideoMetadataRecord *existing = DeArrowStoredMetadataForObject(object);
     if (existing && [existing.videoID isEqualToString:videoID])
         return;
-    DeArrowAssociateMetadata(object, [[VideoMetadataRecord alloc] initWithVideoID:videoID title:nil channel:nil]);
+    DeArrowAssociateMetadata(object, [[VideoMetadataRecord alloc] initWithVideoID:videoID
+                                                                            title:nil
+                                                                          channel:nil]);
 }
 
-void DeArrowPropagateMetadata(id parent, id child) {
+void DeArrowPropagateMetadata(id parent, id child)
+{
     VideoMetadataRecord *metadata = DeArrowStoredMetadataForObject(parent);
     if (metadata)
         DeArrowAssociateMetadata(child, metadata);
 }
 
-static id ExplicitValue(id object, NSString *key) {
-    if (!object || key.length == 0)
-        return nil;
-    SEL selector = NSSelectorFromString(key);
-    if (![object respondsToSelector:selector])
-        return nil;
-    @try {
-        return [object valueForKey:key];
-    } @catch (__unused NSException *exception) {
-        return nil;
-    }
-}
-
-VideoMetadataRecord *DeArrowMetadataForObject(id object) {
+VideoMetadataRecord *DeArrowMetadataForObject(id object)
+{
     if (!object)
         return nil;
     BrandingBinding *binding = DeArrowBindingForObject(object, YES);
@@ -115,75 +132,52 @@ VideoMetadataRecord *DeArrowMetadataForObject(id object) {
         return binding.metadata;
     if (binding.metadataAttempted)
         return nil;
-    binding.metadataAttempted = YES;
+    binding.metadataAttempted     = YES;
     VideoMetadataRecord *metadata = [VideoMetadataAdapters recordForNode:object];
     if (metadata)
         DeArrowAssociateMetadata(object, metadata);
     return metadata;
 }
 
-VideoMetadataRecord *DeArrowMetadataFromParents(id object) {
-    if (!object)
-        return nil;
-    VideoMetadataRecord *metadata = DeArrowStoredMetadataForObject(object);
-    if (metadata)
-        return metadata;
-    BrandingBinding *binding = DeArrowBindingForObject(object, YES);
-    if (binding.metadataAttempted)
-        return nil;
-    binding.metadataAttempted = YES;
-    id current = object;
-    NSString *className = NSStringFromClass([object class]);
-    BOOL nodeObject = [className containsString:@"Node"];
-    for (NSUInteger depth = 0; depth < 8; depth++) {
-        id parent;
-        if (nodeObject && [current respondsToSelector:@selector(yogaParent)])
-            parent = ExplicitValue(current, @"yogaParent");
-        else if ([current respondsToSelector:@selector(superview)])
-            parent = [current superview];
-        if (!parent)
-            break;
-        metadata = DeArrowStoredMetadataForObject(parent);
-        if (metadata)
-            return metadata;
-        current = parent;
-    }
-    return nil;
-}
-
-void DeArrowCancelBinding(id object) {
+void DeArrowCancelBinding(id object)
+{
     BrandingBinding *binding = DeArrowBindingForObject(object, NO);
     [binding.brandingToken cancel];
     [binding.thumbnailBrandingToken cancel];
     [binding.thumbnailToken cancel];
-    binding.brandingToken = nil;
-    binding.thumbnailBrandingToken = nil;
-    binding.thumbnailToken = nil;
-    binding.brandingResolved = NO;
-    binding.thumbnailBrandingResolved = NO;
-    binding.thumbnailResolved = NO;
-    binding.brandingRetryTime = 0.0;
+    binding.brandingToken              = nil;
+    binding.thumbnailBrandingToken     = nil;
+    binding.thumbnailToken             = nil;
+    binding.brandingResolved           = NO;
+    binding.thumbnailBrandingResolved  = NO;
+    binding.thumbnailResolved          = NO;
+    binding.brandingRetryTime          = 0.0;
     binding.thumbnailBrandingRetryTime = 0.0;
-    binding.thumbnailRetryTime = 0.0;
+    binding.thumbnailRetryTime         = 0.0;
     binding.generation += 1;
     binding.relatedViewsBound = NO;
 }
 
-void DeArrowRegisterTitleObject(id object) {
+void DeArrowRegisterTitleObject(id object)
+{
     if (!object)
         return;
-    @synchronized (TitleObjects()) {
+    @synchronized(TitleObjects())
+    {
         [TitleObjects() addObject:object];
     }
 }
 
-void DeArrowRefreshTitleObjects(void) {
+void DeArrowRefreshTitleObjects(void)
+{
     void (^refresh)(void) = ^{
         NSArray *objects;
-        @synchronized (TitleObjects()) {
+        @synchronized(TitleObjects())
+        {
             objects = TitleObjects().allObjects;
         }
-        for (id object in objects) {
+        for (id object in objects)
+        {
             DeArrowRefreshTitleObject(object);
         }
     };
@@ -193,18 +187,22 @@ void DeArrowRefreshTitleObjects(void) {
         dispatch_async(dispatch_get_main_queue(), refresh);
 }
 
-void DeArrowRegisterThumbnailObject(id object) {
+void DeArrowRegisterThumbnailObject(id object)
+{
     if (!object)
         return;
-    @synchronized (ThumbnailObjects()) {
+    @synchronized(ThumbnailObjects())
+    {
         [ThumbnailObjects() addObject:object];
     }
 }
 
-void DeArrowRefreshThumbnailObjects(void) {
+void DeArrowRefreshThumbnailObjects(void)
+{
     void (^refresh)(void) = ^{
         NSArray *objects;
-        @synchronized (ThumbnailObjects()) {
+        @synchronized(ThumbnailObjects())
+        {
             objects = ThumbnailObjects().allObjects;
         }
         for (id object in objects)
@@ -216,14 +214,16 @@ void DeArrowRefreshThumbnailObjects(void) {
         dispatch_async(dispatch_get_main_queue(), refresh);
 }
 
-__attribute__((constructor)) static void DeArrowSupportInitialize(void) {
+__attribute__((constructor)) static void DeArrowSupportInitialize(void)
+{
     dispatch_async(dispatch_get_main_queue(), ^{
-        [[NSNotificationCenter defaultCenter] addObserverForName:DeArrowPreferencesDidChangeNotification
-                                                            object:nil
-                                                             queue:nil
-                                                        usingBlock:^(__unused NSNotification *notification) {
-            DeArrowRefreshTitleObjects();
-            DeArrowRefreshThumbnailObjects();
-        }];
+        [[NSNotificationCenter defaultCenter]
+            addObserverForName:DeArrowPreferencesDidChangeNotification
+                        object:nil
+                         queue:nil
+                    usingBlock:^(__unused NSNotification *notification) {
+                        DeArrowRefreshTitleObjects();
+                        DeArrowRefreshThumbnailObjects();
+                    }];
     });
 }

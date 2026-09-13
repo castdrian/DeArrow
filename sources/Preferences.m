@@ -2,47 +2,52 @@
 
 #import "BrandingClient.h"
 
-NSString *const DeArrowPreferencesDidChangeNotification = @"dev.adrian.dearrow.preferences.didChange";
+NSString *const DeArrowPreferencesDidChangeNotification =
+    @"dev.adrian.dearrow.preferences.didChange";
 
-static NSString *const DeArrowPreferenceEnabledKey = @"enabled";
-static NSString *const DeArrowPreferenceTitleKey = @"titlePreference";
+static NSString *const DeArrowPreferenceEnabledKey    = @"enabled";
+static NSString *const DeArrowPreferenceTitleKey      = @"titlePreference";
 static NSString *const DeArrowPreferenceThumbnailsKey = @"replaceThumbnails";
-static NSString *const DeArrowPreferenceChangelogKey = @"lastViewedChangelogVersion";
+static NSString *const DeArrowPreferenceChangelogKey  = @"lastViewedChangelogVersion";
 
-@interface DeArrowPreferences ()
-@property(nonatomic, strong) NSUserDefaults *defaults;
+@interface                                    DeArrowPreferences ()
+@property (nonatomic, strong) NSUserDefaults *defaults;
 @end
 
 @implementation DeArrowPreferences
 
-+ (instancetype)sharedPreferences {
++ (instancetype)sharedPreferences
+{
     static DeArrowPreferences *preferences;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        preferences = [self new];
-    });
+    static dispatch_once_t     onceToken;
+    dispatch_once(&onceToken, ^{ preferences = [self new]; });
     return preferences;
 }
 
-- (instancetype)init {
+- (instancetype)init
+{
     self = [super init];
-    if (self) {
-        _defaults = [[NSUserDefaults alloc] initWithSuiteName:@"dev.adrian.dearrow"] ?: [NSUserDefaults standardUserDefaults];
+    if (self)
+    {
+        _defaults = [[NSUserDefaults alloc] initWithSuiteName:@"dev.adrian.dearrow"]
+                        ?: [NSUserDefaults standardUserDefaults];
         [_defaults registerDefaults:@{
-            DeArrowPreferenceEnabledKey: @YES,
-            DeArrowPreferenceTitleKey: @(DeArrowTitlePreferenceDeArrow),
-            DeArrowPreferenceThumbnailsKey: @YES,
-            DeArrowPreferenceChangelogKey: @""
+            DeArrowPreferenceEnabledKey : @YES,
+            DeArrowPreferenceTitleKey : @(DeArrowTitlePreferenceDeArrow),
+            DeArrowPreferenceThumbnailsKey : @YES,
+            DeArrowPreferenceChangelogKey : @""
         }];
     }
     return self;
 }
 
-- (BOOL)isEnabled {
+- (BOOL)isEnabled
+{
     return [self.defaults boolForKey:DeArrowPreferenceEnabledKey];
 }
 
-- (void)setEnabled:(BOOL)enabled {
+- (void)setEnabled:(BOOL)enabled
+{
     if (self.enabled == enabled)
         return;
     [self.defaults setBool:enabled forKey:DeArrowPreferenceEnabledKey];
@@ -50,13 +55,18 @@ static NSString *const DeArrowPreferenceChangelogKey = @"lastViewedChangelogVers
     [self postChange];
 }
 
-- (DeArrowTitlePreference)titlePreference {
+- (DeArrowTitlePreference)titlePreference
+{
     NSInteger value = [self.defaults integerForKey:DeArrowPreferenceTitleKey];
-    return value == DeArrowTitlePreferenceOriginal ? DeArrowTitlePreferenceOriginal : DeArrowTitlePreferenceDeArrow;
+    return value == DeArrowTitlePreferenceOriginal ? DeArrowTitlePreferenceOriginal
+                                                   : DeArrowTitlePreferenceDeArrow;
 }
 
-- (void)setTitlePreference:(DeArrowTitlePreference)titlePreference {
-    DeArrowTitlePreference value = titlePreference == DeArrowTitlePreferenceOriginal ? DeArrowTitlePreferenceOriginal : DeArrowTitlePreferenceDeArrow;
+- (void)setTitlePreference:(DeArrowTitlePreference)titlePreference
+{
+    DeArrowTitlePreference value = titlePreference == DeArrowTitlePreferenceOriginal
+                                       ? DeArrowTitlePreferenceOriginal
+                                       : DeArrowTitlePreferenceDeArrow;
     if (self.titlePreference == value)
         return;
     [self.defaults setInteger:value forKey:DeArrowPreferenceTitleKey];
@@ -64,11 +74,13 @@ static NSString *const DeArrowPreferenceChangelogKey = @"lastViewedChangelogVers
     [self postChange];
 }
 
-- (BOOL)replaceThumbnails {
+- (BOOL)replaceThumbnails
+{
     return [self.defaults boolForKey:DeArrowPreferenceThumbnailsKey];
 }
 
-- (void)setReplaceThumbnails:(BOOL)replaceThumbnails {
+- (void)setReplaceThumbnails:(BOOL)replaceThumbnails
+{
     if (self.replaceThumbnails == replaceThumbnails)
         return;
     [self.defaults setBool:replaceThumbnails forKey:DeArrowPreferenceThumbnailsKey];
@@ -76,7 +88,8 @@ static NSString *const DeArrowPreferenceChangelogKey = @"lastViewedChangelogVers
     [self postChange];
 }
 
-- (NSString *)installedVersion {
+- (NSString *)installedVersion
+{
 #ifdef PACKAGE_VERSION
     return PACKAGE_VERSION;
 #else
@@ -84,11 +97,13 @@ static NSString *const DeArrowPreferenceChangelogKey = @"lastViewedChangelogVers
 #endif
 }
 
-- (NSString *)lastViewedChangelogVersion {
+- (NSString *)lastViewedChangelogVersion
+{
     return [self.defaults stringForKey:DeArrowPreferenceChangelogKey] ?: @"";
 }
 
-- (void)setLastViewedChangelogVersion:(NSString *)version {
+- (void)setLastViewedChangelogVersion:(NSString *)version
+{
     NSString *value = version ?: @"";
     if ([self.lastViewedChangelogVersion isEqualToString:value])
         return;
@@ -96,17 +111,22 @@ static NSString *const DeArrowPreferenceChangelogKey = @"lastViewedChangelogVers
     [self.defaults synchronize];
 }
 
-- (void)markChangelogSeen {
+- (void)markChangelogSeen
+{
     self.lastViewedChangelogVersion = self.installedVersion;
 }
 
-- (void)postChange {
+- (void)postChange
+{
     dispatch_async(dispatch_get_main_queue(), ^{
-        [[NSNotificationCenter defaultCenter] postNotificationName:DeArrowPreferencesDidChangeNotification object:self];
+        [[NSNotificationCenter defaultCenter]
+            postNotificationName:DeArrowPreferencesDidChangeNotification
+                          object:self];
     });
 }
 
-- (void)clearCache {
+- (void)clearCache
+{
     [[BrandingClient sharedClient] clearCache];
 }
 

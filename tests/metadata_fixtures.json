@@ -2,35 +2,35 @@
   {
     "name": "long-form-video-node",
     "adapter": "YTVideoNode",
-    "videoID": "dQw4w9WgXcQ",
-    "title": "Long-form fixture",
-    "channel": "Example Channel"
+    "videoID": "pi-IO4laax4",
+    "title": "These Are Some Wild Bodycams",
+    "channel": "penguinz0"
   },
   {
     "name": "video-with-context-node",
     "adapter": "YTVideoWithContextNode",
-    "videoID": "M7lc1UVf-VE",
-    "title": "Context fixture",
-    "channel": "Example Channel"
+    "videoID": "fa9bMkW-Ph0",
+    "title": "Wacky Tik Tok Drama",
+    "channel": "penguinz0"
   },
   {
     "name": "elements-renderer",
     "adapter": "Elements",
-    "videoID": "BaW_ungD7lE",
-    "title": "Elements fixture",
-    "channel": "Elements Channel"
+    "videoID": "aqz-KE-bpKQ",
+    "title": "Big Buck Bunny (2008) [60fps 4K]",
+    "channel": "Blender Open Movies"
   },
   {
     "name": "shorts-renderer",
     "adapter": "Shorts",
-    "videoID": "aqz-KE-bpKQ",
+    "videoID": "JwbUuKMbijg",
     "title": "Shorts fixture",
     "channel": "Shorts Channel"
   },
   {
     "name": "incomplete-renderer",
     "adapter": "Incomplete",
-    "videoID": "9bZkp7q19f0",
+    "videoID": "0RjF0y5MpsU",
     "title": "",
     "channel": ""
   }
