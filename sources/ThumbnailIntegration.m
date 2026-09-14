@@ -127,9 +127,10 @@ static void InstallImageNodeSetter(Class targetClass)
 
 void DeArrowInstallThumbnailIntegration(void)
 {
-    Class imageNodeClass = NSClassFromString(@"ASImageNode");
-    if (imageNodeClass)
+    for (NSString *className in @[ @"ASImageNode", @"ASNetworkImageNode", @"ELMImageNode" ])
     {
-        InstallImageNodeSetter(imageNodeClass);
+        Class imageNodeClass = NSClassFromString(className);
+        if (imageNodeClass)
+            InstallImageNodeSetter(imageNodeClass);
     }
 }
