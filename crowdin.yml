@@ -1,5 +1,8 @@
+project_id_env: CROWDIN_PROJECT_ID
+api_token_env: CROWDIN_PERSONAL_TOKEN
+preserve_hierarchy: true
+
 files:
   - source: "/layout/Library/Application Support/DeArrow.bundle/en.lproj/Localizable.strings"
     translation: "/layout/Library/Application Support/DeArrow.bundle/%osx_code%/Localizable.strings"
     skip_untranslated_files: true
-    preserve_hierarchy: true
