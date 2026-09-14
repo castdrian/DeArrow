@@ -45,7 +45,21 @@ The package is written to `packages/`.
 
 ## Testing
 
-Run the deterministic fixture suite with `go test ./...`. Run `go run ./scripts/branding-smoke` to validate the live DeArrow records used by the fixture matrix, including neutral long-form, penguinz0 commentary and bodycam videos, and a Shorts URL with no listing.
+Run the deterministic fixture and architecture checks with:
+
+```sh
+gmake test
+gmake verify-architecture
+go run ./scripts/branding-smoke
+```
+
+The read-only SE diagnostic harness records package versions, process state, crash reports, and a screenshot without changing app data:
+
+```sh
+go run ./scripts/dearrow-tools device-debug 00008030-001624583AF9402E ./test-artifacts/device-debug
+```
+
+For simulator work, set `DEARROW_SIMULATOR_ID` and optionally `DEARROW_SIMULATOR_DYLIB`, `DEARROW_CYDIASUBSTRATE`, `DEARROW_SIMSLIM_BIN`, and `DEARROW_SIMFORGE_BIN`, then run `go run ./scripts/dearrow-tools simulator-debug`. The settings loop is available as `simulator-settings-regression`; it writes all screenshots, OCR, logs, and memory artifacts to `test-artifacts/`.
 
 
 ## Privacy and network behavior

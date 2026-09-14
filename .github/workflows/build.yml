@@ -32,6 +32,8 @@ jobs:
           echo "DEB_FILE=${PACKAGE}_${VERSION}_iphoneos-arm64.deb" >> "$GITHUB_ENV"
       - name: Run fixture tests
         run: go test ./...
+      - name: Verify architecture
+        run: go run ./scripts/dearrow-tools verify-architecture
       - name: Build package
         run: gmake clean package FINALPACKAGE=1
       - name: Verify package
