@@ -17,6 +17,7 @@ static void            *SettingsControllerManagerKey = &SettingsControllerManage
 static id SettingsIvarObject(id object, const char *name);
 static UIViewController *
 CreateCustomSettingsDestination(YTSettingsViewController *settingsController);
+static void RegisterSettingsCategory(void);
 
 static BOOL SettingsHostAvailable(void)
 {
@@ -106,6 +107,14 @@ static void InstallSettingsObservers(void)
                         if (destination)
                             ((NSMutableDictionary *) notification.userInfo)[@"destination"] =
                                 destination;
+                    }];
+        [[NSNotificationCenter defaultCenter]
+            addObserverForName:@"SettingsIntegrationHostReady"
+                        object:nil
+                         queue:nil
+                    usingBlock:^(__unused NSNotification *notification) {
+                        if (SettingsHostAvailable())
+                            RegisterSettingsCategory();
                     }];
         installed = YES;
     }
