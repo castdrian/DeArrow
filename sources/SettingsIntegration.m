@@ -127,23 +127,28 @@ UIImage *SettingsIconImage(void)
     dispatch_once(&onceToken, ^{
         CGSize size = CGSizeMake(24.0, 24.0);
         UIGraphicsBeginImageContextWithOptions(size, NO, 0.0);
+        UIBezierPath *background =
+            [UIBezierPath bezierPathWithRoundedRect:CGRectMake(0.0, 0.0, size.width, size.height)
+                                       cornerRadius:5.25];
+        [[UIColor colorWithRed:1.0 green:0.0 blue:0.2 alpha:1.0] setFill];
+        [background fill];
         [[UIColor whiteColor] setFill];
         UIBezierPath *top = [UIBezierPath bezierPath];
-        [top moveToPoint:CGPointMake(5.8, 6.4)];
-        [top addLineToPoint:CGPointMake(18.2, 6.4)];
+        [top moveToPoint:CGPointMake(5.8, 6.375)];
+        [top addLineToPoint:CGPointMake(18.2, 6.375)];
         [top addLineToPoint:CGPointMake(14.25, 12.0)];
         [top addLineToPoint:CGPointMake(9.75, 12.0)];
         [top closePath];
         [top fill];
         UIBezierPath *bottom = [UIBezierPath bezierPath];
-        [bottom moveToPoint:CGPointMake(5.8, 17.6)];
-        [bottom addLineToPoint:CGPointMake(18.2, 17.6)];
+        [bottom moveToPoint:CGPointMake(5.8, 17.625)];
+        [bottom addLineToPoint:CGPointMake(18.2, 17.625)];
         [bottom addLineToPoint:CGPointMake(14.25, 12.0)];
         [bottom addLineToPoint:CGPointMake(9.75, 12.0)];
         [bottom closePath];
         [bottom fill];
-        [[UIColor clearColor] setFill];
-        [[UIBezierPath bezierPathWithArcCenter:CGPointMake(12.0, 12.0)
+        [[UIColor colorWithRed:1.0 green:0.0 blue:0.2 alpha:1.0] setFill];
+        [[UIBezierPath bezierPathWithArcCenter:CGPointMake(12.1875, 12.0)
                                         radius:2.25
                                     startAngle:0.0
                                       endAngle:2.0 * M_PI
