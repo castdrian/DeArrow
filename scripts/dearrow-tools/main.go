@@ -1,11 +1,13 @@
 package main
 
 import (
+	"archive/zip"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"image"
 	_ "image/png"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -298,7 +300,11 @@ func simulatorRuntime(root, output string) (string, error) {
 }
 
 func launchSimulatorYouTube(identifier, runtimeDirectory, outputPath string) error {
-	_, _ = run("", "xcrun", "simctl", "terminate", identifier, youtubeBundleID)
+	return launchSimulatorBundle(identifier, youtubeBundleID, runtimeDirectory, outputPath)
+}
+
+func launchSimulatorBundle(identifier, bundleID, runtimeDirectory, outputPath string) error {
+	_, _ = run("", "xcrun", "simctl", "terminate", identifier, bundleID)
 	environment := []string{}
 	if runtimeDirectory != "" {
 		environment = []string{
@@ -306,11 +312,154 @@ func launchSimulatorYouTube(identifier, runtimeDirectory, outputPath string) err
 			"SIMCTL_CHILD_DYLD_INSERT_LIBRARIES=" + filepath.Join(runtimeDirectory, "DeArrow.dylib"),
 		}
 	}
-	output, err := runWithEnvironment("", environment, "xcrun", "simctl", "launch", identifier, youtubeBundleID)
+	output, err := runWithEnvironment("", environment, "xcrun", "simctl", "launch", identifier, bundleID)
 	if writeErr := writeText(outputPath, string(output)); err == nil && writeErr != nil {
 		return writeErr
 	}
 	return err
+}
+
+func simulatorAppInfoPlist(appPath, output string) (string, error) {
+	if strings.HasSuffix(strings.ToLower(appPath), ".ipa") {
+		archive, err := zip.OpenReader(appPath)
+		if err != nil {
+			return "", err
+		}
+		defer archive.Close()
+		for _, entry := range archive.File {
+			if !strings.HasPrefix(entry.Name, "Payload/") ||
+				!strings.HasSuffix(entry.Name, ".app/Info.plist") {
+				continue
+			}
+			reader, err := entry.Open()
+			if err != nil {
+				return "", err
+			}
+			path := filepath.Join(output, "sideload-info.plist")
+			file, err := os.Create(path)
+			if err != nil {
+				reader.Close()
+				return "", err
+			}
+			_, err = io.Copy(file, reader)
+			closeErr := file.Close()
+			reader.Close()
+			if err != nil {
+				return "", err
+			}
+			if closeErr != nil {
+				return "", closeErr
+			}
+			return path, nil
+		}
+		return "", errors.New("IPA does not contain a Payload app Info.plist")
+	}
+	path := filepath.Join(appPath, "Info.plist")
+	if _, err := os.Stat(path); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func simulatorBundleIdentifier(appPath, output string) (string, error) {
+	infoPath, err := simulatorAppInfoPlist(appPath, output)
+	if err != nil {
+		return "", err
+	}
+	contents, err := run("", "plutil", "-extract", "CFBundleIdentifier", "raw", "-o", "-", infoPath)
+	if err != nil {
+		return "", err
+	}
+	bundleID := strings.TrimSpace(string(contents))
+	if bundleID == "" {
+		return "", errors.New("sideloaded app has no CFBundleIdentifier")
+	}
+	return bundleID, nil
+}
+
+func simulatorAppInstalled(identifier, bundleID, output string) (bool, error) {
+	path := filepath.Join(output, "installed-apps.txt")
+	if err := runToFile("", path, "xcrun", "simctl", "listapps", identifier); err != nil {
+		return false, err
+	}
+	contents, err := os.ReadFile(path)
+	return strings.Contains(string(contents), bundleID), err
+}
+
+func simulatorSideloadDebug(args []string) error {
+	root, err := repositoryRoot()
+	if err != nil {
+		return err
+	}
+	if len(args) < 2 || len(args) > 3 {
+		return errors.New("usage: simulator-sideload-debug SIMULATOR APP_PATH [OUTPUT_DIRECTORY]")
+	}
+	identifier := args[0]
+	appPath, err := filepath.Abs(args[1])
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(appPath); err != nil {
+		return err
+	}
+	requested := ""
+	if len(args) == 3 {
+		requested = args[2]
+	}
+	output, err := outputDirectory(root, requested, "dearrow-sideload-")
+	if err != nil {
+		return err
+	}
+	if err := simulatorBoot(identifier); err != nil {
+		return err
+	}
+	bundleID, err := simulatorBundleIdentifier(appPath, output)
+	if err != nil {
+		return err
+	}
+	installed, err := simulatorAppInstalled(identifier, bundleID, output)
+	if err != nil {
+		return err
+	}
+	installMode := "existing"
+	if !installed {
+		if err := runToFile("", filepath.Join(output, "install.log"), "xcrun", "simctl", "install", identifier, appPath); err != nil {
+			return err
+		}
+		installMode = "installed"
+	}
+	simslim := commandPath("DEARROW_SIMSLIM_BIN", "simslim")
+	_ = runToFile("", filepath.Join(output, "simslim-status.txt"), simslim, "status", identifier)
+	_ = runToFile("", filepath.Join(output, "simslim-verify.txt"), simslim, "verify", identifier)
+	runtimeDirectory, err := simulatorRuntime(root, output)
+	if err != nil {
+		return err
+	}
+	injection := "disabled"
+	if runtimeDirectory != "" {
+		injection = runtimeDirectory
+	}
+	if err := writeText(filepath.Join(output, "runtime-path.txt"), injection+"\n"); err != nil {
+		return err
+	}
+	if err := launchSimulatorBundle(identifier, bundleID, runtimeDirectory,
+		filepath.Join(output, "launch.log")); err != nil {
+		return err
+	}
+	if _, _, err := simulatorCapture(identifier, filepath.Join(output, "launch.png")); err != nil {
+		return err
+	}
+	predicate := fmt.Sprintf("process == \"%s\" OR eventMessage CONTAINS[c] \"DeArrow\"", bundleID)
+	_ = runToFile("", filepath.Join(output, "app-logs.txt"), "xcrun", "simctl", "spawn", identifier,
+		"log", "show", "--style", "compact", "--last", "5m", "--predicate", predicate)
+	_ = runToFile("", filepath.Join(output, "simulator-memory.txt"), simslim, "measure", identifier)
+	manifest := fmt.Sprintf("simulator=%s\napp=%s\nbundle=%s\ninstall=%s\ninjection=%s\noutput=%s\n",
+		identifier, appPath, bundleID, installMode, injection, output)
+	if err := writeText(filepath.Join(output, "manifest.txt"), manifest); err != nil {
+		return err
+	}
+	fmt.Println(output)
+	return nil
 }
 
 func simulatorDebug(args []string) error {
@@ -558,6 +707,9 @@ func verifyArchitecture(root string) error {
 	if err := requireContains(root, "sources/SettingsIntegration.m", "SettingsIntegrationHostReady", "setSectionItems:forCategory:title:icon:titleDescription:headerHidden:"); err != nil {
 		return err
 	}
+	if err := requireContains(root, "README.md", "simulator-sideload-debug"); err != nil {
+		return err
+	}
 	if err := requireTreeExcludes(root, "sources", "ELMImageDownloader", "PXLDeArrow", "DeArrowCategoryPending"); err != nil {
 		return err
 	}
@@ -627,7 +779,7 @@ func releaseDryRun(root string) error {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage: dearrow-tools COMMAND [ARGS]")
-	fmt.Fprintln(os.Stderr, "commands: device-debug, simulator-debug, simulator-settings-regression, verify-architecture, release-dry-run")
+	fmt.Fprintln(os.Stderr, "commands: device-debug, simulator-debug, simulator-sideload-debug, simulator-settings-regression, verify-architecture, release-dry-run")
 }
 
 func main() {
@@ -647,6 +799,8 @@ func main() {
 		err = deviceDebug(args)
 	case "simulator-debug":
 		err = simulatorDebug(args)
+	case "simulator-sideload-debug":
+		err = simulatorSideloadDebug(args)
 	case "simulator-settings-regression":
 		err = simulatorSettingsRegression(args)
 	case "verify-architecture":
