@@ -454,17 +454,17 @@ static void InstallStandaloneSettingsHooks(void)
         DeArrowInstallInstanceHook(
             groupClass, @selector(orderedCategories), ^id(IMP original, SEL command) {
                 return ^id(id object, SEL selector) {
-                    if (!SettingsHostAvailable() && [object respondsToSelector:@selector(type)] &&
+                    if ([object respondsToSelector:@selector(type)] &&
                         [(YTSettingsGroupData *) object type] == DeArrowSettingsGroup)
-                        return @[ @(DeArrowSettingsCategory) ];
+                        return SettingsHostAvailable() ? @[] : @[ @(DeArrowSettingsCategory) ];
                     return ((id (*)(id, SEL)) original)(object, selector);
                 };
             });
         DeArrowInstallInstanceHook(
             groupClass, @selector(orderedCategoriesForGroupType:), ^id(IMP original, SEL command) {
                 return ^id(id object, SEL selector, NSUInteger type) {
-                    if (!SettingsHostAvailable() && type == DeArrowSettingsGroup)
-                        return @[ @(DeArrowSettingsCategory) ];
+                    if (type == DeArrowSettingsGroup)
+                        return SettingsHostAvailable() ? @[] : @[ @(DeArrowSettingsCategory) ];
                     return ((id (*)(id, SEL, NSUInteger)) original)(object, selector, type);
                 };
             });
@@ -484,9 +484,17 @@ static void InstallStandaloneSettingsHooks(void)
         DeArrowInstallClassHook(
             presentationClass, @selector(orderedGroups), ^id(IMP original, SEL command) {
                 return ^id(id object, SEL selector) {
-                    NSArray *groups = ((id (*)(id, SEL)) original)(object, selector);
+                    NSArray        *groups = ((id (*)(id, SEL)) original)(object, selector);
+                    NSMutableArray *result = groups.mutableCopy ?: [NSMutableArray array];
                     if (SettingsHostAvailable())
-                        return groups;
+                    {
+                        for (YTSettingsGroupData *group in groups)
+                        {
+                            if (group.type == DeArrowSettingsGroup)
+                                [result removeObject:group];
+                        }
+                        return result.copy;
+                    }
                     for (YTSettingsGroupData *group in groups)
                     {
                         if (group.type == DeArrowSettingsGroup)
@@ -495,7 +503,6 @@ static void InstallStandaloneSettingsHooks(void)
                     Class settingsGroupClass = NSClassFromString(@"YTSettingsGroupData");
                     if (!settingsGroupClass)
                         return groups;
-                    NSMutableArray *result = groups.mutableCopy ?: [NSMutableArray array];
                     [result insertObject:[[settingsGroupClass alloc]
                                              initWithGroupType:DeArrowSettingsGroup]
                                  atIndex:0];
@@ -559,8 +566,8 @@ static void InstallStandaloneSettingsHooks(void)
                         icon = SettingsIcon();
                     ((void (*)(id, SEL, NSMutableArray *, NSInteger, NSString *, YTIIcon *,
                                NSString *, BOOL)) original)(object, selector, items, category,
-                                                             title, icon, titleDescription,
-                                                             headerHidden);
+                                                            title, icon, titleDescription,
+                                                            headerHidden);
                 };
             });
         DeArrowInstallInstanceHook(settingsClass, @selector(viewDidLoad),
