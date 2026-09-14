@@ -25,6 +25,7 @@
 !tests/**
 !tools/
 !tools/**
+test-artifacts/
 !sources/
 !sources/**
 !go.mod
