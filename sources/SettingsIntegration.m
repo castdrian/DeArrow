@@ -548,6 +548,21 @@ static void InstallStandaloneSettingsHooks(void)
     Class settingsClass = SettingsViewControllerClass();
     if (settingsClass)
     {
+        DeArrowInstallInstanceHook(
+            settingsClass,
+            @selector(setSectionItems:forCategory:title:icon:titleDescription:headerHidden:),
+            ^id(IMP original, SEL command) {
+                return ^(id object, SEL selector, NSMutableArray *items, NSInteger category,
+                         NSString *title, YTIIcon *icon, NSString *titleDescription,
+                         BOOL headerHidden) {
+                    if (category == DeArrowSettingsCategory)
+                        icon = SettingsIcon();
+                    ((void (*)(id, SEL, NSMutableArray *, NSInteger, NSString *, YTIIcon *,
+                               NSString *, BOOL)) original)(object, selector, items, category,
+                                                             title, icon, titleDescription,
+                                                             headerHidden);
+                };
+            });
         DeArrowInstallInstanceHook(settingsClass, @selector(viewDidLoad),
                                    ^id(IMP original, SEL command) {
                                        return ^(id object, SEL selector) {
