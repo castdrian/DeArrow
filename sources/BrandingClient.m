@@ -10,6 +10,15 @@
 @implementation BrandingCacheEntry
 @end
 
+@interface                                       ThumbnailCacheEntry : NSObject
+@property (nonatomic, strong, nullable) UIImage *image;
+@property (nonatomic, strong) NSDate            *expiresAt;
+@property (nonatomic) BOOL                       negative;
+@end
+
+@implementation ThumbnailCacheEntry
+@end
+
 @interface                                   BrandingRequestToken ()
 @property (nonatomic, copy) dispatch_block_t cancellation;
 @property (nonatomic) BOOL                   cancelled;
@@ -63,11 +72,11 @@
 @implementation ThumbnailWaiter
 @end
 
-@interface                                                               BrandingClient ()
-@property (nonatomic, strong) NSURLSession                              *session;
-@property (nonatomic, strong) dispatch_queue_t                           stateQueue;
-@property (nonatomic, strong) NSCache<NSString *, BrandingCacheEntry *> *cache;
-@property (nonatomic, strong) NSCache<NSString *, UIImage *>            *thumbnailCache;
+@interface                                                                BrandingClient ()
+@property (nonatomic, strong) NSURLSession                               *session;
+@property (nonatomic, strong) dispatch_queue_t                            stateQueue;
+@property (nonatomic, strong) NSCache<NSString *, BrandingCacheEntry *>  *cache;
+@property (nonatomic, strong) NSCache<NSString *, ThumbnailCacheEntry *> *thumbnailCache;
 @property (nonatomic, strong)
     NSMutableDictionary<NSString *, NSMutableArray<BrandingWaiter *> *>               *waiters;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSURLSessionDataTask *> *tasks;
@@ -387,15 +396,18 @@ static NSURLRequest *BrandingRequest(NSURL *URL, NSString *accept, NSTimeInterva
     dispatch_async(self.stateQueue, ^{
         if ([token isCancelled])
             return;
-        UIImage *cachedImage = [self.thumbnailCache objectForKey:validID];
-        if (cachedImage)
+        ThumbnailCacheEntry *entry = [self.thumbnailCache objectForKey:validID];
+        if (entry.expiresAt.timeIntervalSinceNow > 0)
         {
+            UIImage *cachedImage = entry.negative ? nil : entry.image;
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (![token isCancelled])
                     completion(cachedImage, nil);
             });
             return;
         }
+        if (entry)
+            [self.thumbnailCache removeObjectForKey:validID];
         ThumbnailWaiter *waiter                    = [ThumbnailWaiter new];
         waiter.completion                          = [completion copy];
         waiter.token                               = token;
@@ -431,16 +443,32 @@ static NSURLRequest *BrandingRequest(NSURL *URL, NSString *accept, NSTimeInterva
         NSArray<ThumbnailWaiter *> *waiters = self.thumbnailWaiters[videoID].copy;
         [self.thumbnailWaiters removeObjectForKey:videoID];
         UIImage  *image;
-        NSError  *resultError = error;
-        NSInteger statusCode  = [(NSHTTPURLResponse *) response statusCode];
-        if (!resultError && statusCode != 200)
+        NSError  *resultError    = error;
+        NSInteger statusCode     = [(NSHTTPURLResponse *) response statusCode];
+        BOOL      negativeResult = NO;
+        if (!resultError && statusCode == 404)
+            negativeResult = YES;
+        else if (!resultError && statusCode != 200)
             resultError = BrandingError(statusCode, @"Thumbnail request failed");
         if (!resultError && data.length > 0)
             image = [UIImage imageWithData:data];
         if (!image && !resultError)
-            resultError = BrandingError(2, @"Thumbnail response was not an image");
+            negativeResult = YES;
         if (image)
-            [self.thumbnailCache setObject:image forKey:videoID];
+        {
+            ThumbnailCacheEntry *entry = [ThumbnailCacheEntry new];
+            entry.image                = image;
+            entry.expiresAt            = [NSDate dateWithTimeIntervalSinceNow:3600.0];
+            [self.thumbnailCache setObject:entry forKey:videoID];
+        }
+        else if (negativeResult)
+        {
+            ThumbnailCacheEntry *entry = [ThumbnailCacheEntry new];
+            entry.negative             = YES;
+            entry.expiresAt            = [NSDate dateWithTimeIntervalSinceNow:180.0];
+            [self.thumbnailCache setObject:entry forKey:videoID];
+            resultError = nil;
+        }
         for (ThumbnailWaiter *waiter in waiters)
         {
             ThumbnailCompletion   completion = waiter.completion;

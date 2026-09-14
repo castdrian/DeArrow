@@ -22,7 +22,6 @@
 @property (nonatomic) NSTimeInterval                          thumbnailRetryTime;
 @property (nonatomic) BOOL                                    applyingTitle;
 @property (nonatomic) BOOL                                    applyingThumbnail;
-@property (nonatomic) BOOL                                    relatedViewsBound;
 @end
 
 BrandingBinding     *DeArrowBindingForObject(id object, BOOL create);

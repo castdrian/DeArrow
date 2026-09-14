@@ -96,7 +96,6 @@ void DeArrowAssociateMetadata(id object, VideoMetadataRecord *metadata)
     binding.brandingRetryTime          = 0.0;
     binding.thumbnailBrandingRetryTime = 0.0;
     binding.thumbnailRetryTime         = 0.0;
-    binding.relatedViewsBound          = NO;
     binding.generation += 1;
     binding.metadata          = [metadata copy];
     binding.metadataAttempted = YES;
@@ -155,7 +154,6 @@ void DeArrowCancelBinding(id object)
     binding.thumbnailBrandingRetryTime = 0.0;
     binding.thumbnailRetryTime         = 0.0;
     binding.generation += 1;
-    binding.relatedViewsBound = NO;
 }
 
 void DeArrowRegisterTitleObject(id object)

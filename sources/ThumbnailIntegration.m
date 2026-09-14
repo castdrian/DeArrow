@@ -1,9 +1,5 @@
 #import "ThumbnailIntegration.h"
 
-#import <UIKit/UIKit.h>
-#import <objc/message.h>
-#import <objc/runtime.h>
-
 #import "BrandingClient.h"
 #import "HookSupport.h"
 #import "IntegrationSupport.h"
@@ -76,18 +72,7 @@ static void ApplyThumbnailToObject(id object, BOOL animated)
                                                    if (currentBinding.applyingThumbnail)
                                                        return;
                                                    currentBinding.applyingThumbnail = YES;
-                                                   if ([currentObject
-                                                           respondsToSelector:
-                                                               @selector(setImage:animated:)])
-                                                       ((void (*)(id, SEL, UIImage *,
-                                                                  BOOL)) objc_msgSend)(
-                                                           currentObject,
-                                                           @selector(setImage:animated:), image,
-                                                           NO);
-                                                   else if ([currentObject
-                                                                respondsToSelector:@selector(
-                                                                                       setImage:)])
-                                                       [currentObject setImage:image];
+                                                   [currentObject setImage:image];
                                                    currentBinding.applyingThumbnail = NO;
                                                }];
                        }];
@@ -116,68 +101,12 @@ void DeArrowRefreshThumbnailObject(id object)
         if (binding.originalImage && !binding.applyingThumbnail)
         {
             binding.applyingThumbnail = YES;
-            if ([object respondsToSelector:@selector(setImage:animated:)])
-                ((void (*)(id, SEL, UIImage *, BOOL)) objc_msgSend)(
-                    object, @selector(setImage:animated:), binding.originalImage, NO);
-            else if ([object respondsToSelector:@selector(setImage:)])
-                [object setImage:binding.originalImage];
+            [object setImage:binding.originalImage];
             binding.applyingThumbnail = NO;
         }
         return;
     }
     ApplyThumbnailToObject(object, NO);
-}
-
-static void BindRelatedLabels(UIView *imageView, NSString *videoID)
-{
-    if (!imageView || !videoID.length)
-        return;
-    BrandingBinding *binding = DeArrowBindingForObject(imageView, YES);
-    if (binding.relatedViewsBound)
-        return;
-    UIView *current = imageView;
-    for (NSUInteger depth = 0; depth < 4; depth++)
-    {
-        UIView *parent = current.superview;
-        if (!parent)
-            break;
-        for (UIView *candidate in parent.subviews)
-        {
-            if (candidate == imageView)
-                continue;
-            NSString           *identifier = candidate.accessibilityIdentifier.lowercaseString;
-            NSAttributedString *value = [candidate respondsToSelector:@selector(attributedText)]
-                                            ? [(id) candidate attributedText]
-                                            : nil;
-            NSString           *text  = value.string.lowercaseString;
-            BOOL                namedTitle =
-                [identifier containsString:@"title"] || [identifier containsString:@"headline"];
-            BOOL URLText =
-                text.length > 0 &&
-                ([text containsString:@"http://"] || [text containsString:@"https://"] ||
-                 [text containsString:@"youtube.com/"] || [text containsString:@"youtu.be/"]);
-            if (namedTitle && !URLText)
-            {
-                DeArrowAssociateVideoID(candidate, videoID);
-            }
-        }
-        current = parent;
-    }
-    binding.relatedViewsBound = YES;
-}
-
-static void InstallWindowCancellation(Class targetClass)
-{
-    SEL selector = @selector(didMoveToWindow);
-    if (!class_getInstanceMethod(targetClass, selector))
-        return;
-    DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
-        return ^(id object, SEL selector) {
-            ((void (*)(id, SEL)) original)(object, selector);
-            if (![object window])
-                DeArrowCancelBinding(object);
-        };
-    });
 }
 
 static void InstallImageNodeSetter(Class targetClass)
@@ -196,46 +125,11 @@ static void InstallImageNodeSetter(Class targetClass)
     });
 }
 
-static void InstallImageViewSetter(Class targetClass)
-{
-    SEL selector = @selector(setImage:animated:);
-    DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
-        return ^(id object, SEL selector, UIImage *image, BOOL animated) {
-            ((void (*)(id, SEL, UIImage *, BOOL)) original)(object, selector, image, animated);
-            BrandingBinding *binding = DeArrowBindingForObject(object, NO);
-            if (binding && binding.applyingThumbnail)
-                return;
-            VideoMetadataRecord *metadata = DeArrowStoredMetadataForObject(object);
-            if (!metadata)
-            {
-                id delegate =
-                    [object respondsToSelector:@selector(delegate)] ? [object delegate] : nil;
-                metadata = DeArrowStoredMetadataForObject(delegate);
-            }
-            if (!metadata || !metadata.videoID.length)
-                return;
-            if (!binding || ![binding.metadata.videoID isEqualToString:metadata.videoID])
-                DeArrowAssociateMetadata(object, metadata);
-            binding               = DeArrowBindingForObject(object, YES);
-            binding.originalImage = image;
-            BindRelatedLabels((UIView *) object, metadata.videoID);
-            ApplyThumbnailToObject(object, animated);
-        };
-    });
-}
-
 void DeArrowInstallThumbnailIntegration(void)
 {
-    for (NSString *className in @[ @"ASImageNode" ])
+    Class imageNodeClass = NSClassFromString(@"ASImageNode");
+    if (imageNodeClass)
     {
-        Class imageNodeClass = NSClassFromString(className);
-        if (imageNodeClass)
-            InstallImageNodeSetter(imageNodeClass);
-    }
-    Class imageViewClass = NSClassFromString(@"YTImageView");
-    if (imageViewClass)
-    {
-        InstallImageViewSetter(imageViewClass);
-        InstallWindowCancellation(imageViewClass);
+        InstallImageNodeSetter(imageNodeClass);
     }
 }

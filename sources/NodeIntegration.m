@@ -5,6 +5,7 @@
 #import "HookSupport.h"
 #import "IntegrationSupport.h"
 #import "Metadata.h"
+#import "ThumbnailIntegration.h"
 #import "TitleIntegration.h"
 
 static NSArray *NodeChildren(id object)
@@ -69,7 +70,10 @@ static void AssociateNodeMetadata(id object, VideoMetadataRecord *metadata, NSUI
     {
         DeArrowAssociateMetadata(object, metadata);
         if (IsThumbnailMetadataTarget(object))
+        {
             DeArrowRegisterThumbnailObject(object);
+            DeArrowRefreshThumbnailObject(object);
+        }
     }
     for (id child in NodeChildren(object))
         AssociateNodeMetadata(child, metadata, depth + 1);

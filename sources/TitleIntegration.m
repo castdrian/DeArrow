@@ -1,6 +1,7 @@
 #import "TitleIntegration.h"
 
 #import <UIKit/UIKit.h>
+#import <objc/message.h>
 #import <objc/runtime.h>
 
 #import "BrandingClient.h"
@@ -31,8 +32,8 @@ static BOOL HasKnownTitleClass(id object)
         return NO;
     for (Class current = object_getClass(object); current; current = class_getSuperclass(current))
     {
-        if ([(@[ @"ASTextNode", @"ELMTextNode",
-                 @"YTFormattedStringLabel" ]) containsObject:NSStringFromClass(current)])
+        if ([(@[ @"ASTextNode", @"ELMTextNode", @"YTFormattedStringLabel",
+                 @"YTNewFormattedLabel" ]) containsObject:NSStringFromClass(current)])
             return YES;
     }
     return NO;
@@ -211,6 +212,94 @@ static void CaptureTitleObject(id object, VideoMetadataRecord *metadata)
     }
 }
 
+static void CapturePlayerTitleViews(UIView *view, VideoMetadataRecord *metadata, NSUInteger depth)
+{
+    if (!view || !metadata || depth > 12)
+        return;
+    if (IsTitleObject(view) && HasKnownTitleClass(view))
+        CaptureTitleObject(view, metadata);
+    for (UIView *child in view.subviews)
+        CapturePlayerTitleViews(child, metadata, depth + 1);
+}
+
+static void SchedulePlayerTitleRefresh(id player)
+{
+    if (![player isKindOfClass:[UIViewController class]])
+        return;
+    if (!NSThread.isMainThread)
+    {
+        __weak id weakPlayer = player;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            id strongPlayer = weakPlayer;
+            if (strongPlayer)
+                SchedulePlayerTitleRefresh(strongPlayer);
+        });
+        return;
+    }
+    UIView *view = [(UIViewController *) player viewIfLoaded];
+    if (!view ||
+        [objc_getAssociatedObject(player, @selector(SchedulePlayerTitleRefresh)) boolValue])
+        return;
+    objc_setAssociatedObject(player, @selector(SchedulePlayerTitleRefresh), @YES,
+                             OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    __weak id weakPlayer = player;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        id strongPlayer = weakPlayer;
+        if (strongPlayer)
+        {
+            objc_setAssociatedObject(strongPlayer, @selector(SchedulePlayerTitleRefresh), @NO,
+                                     OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            VideoMetadataRecord *metadata    = DeArrowStoredMetadataForObject(strongPlayer);
+            UIView              *currentView = [(UIViewController *) strongPlayer viewIfLoaded];
+            if (metadata && currentView)
+                CapturePlayerTitleViews(currentView, metadata, 0);
+        }
+    });
+}
+
+static void ObservePlayerMetadata(id player, VideoMetadataRecord *metadata)
+{
+    if (!player || !metadata.videoID.length)
+        return;
+    if (!NSThread.isMainThread)
+    {
+        __weak id            weakPlayer     = player;
+        VideoMetadataRecord *strongMetadata = [metadata copy];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            id strongPlayer = weakPlayer;
+            if (strongPlayer)
+                ObservePlayerMetadata(strongPlayer, strongMetadata);
+        });
+        return;
+    }
+    NSString *previousVideoID = objc_getAssociatedObject(player, @selector(ObservePlayerMetadata));
+    if (![previousVideoID isEqualToString:metadata.videoID])
+    {
+        objc_setAssociatedObject(player, @selector(ObservePlayerMetadata), metadata.videoID,
+                                 OBJC_ASSOCIATION_COPY_NONATOMIC);
+        DeArrowAssociateMetadata(player, metadata);
+    }
+    else if (!DeArrowStoredMetadataForObject(player))
+        DeArrowAssociateMetadata(player, metadata);
+    SchedulePlayerTitleRefresh(player);
+}
+
+static void ObservePlayer(id player)
+{
+    VideoMetadataRecord *metadata = [VideoMetadataAdapters recordForObject:player];
+    if (metadata)
+        ObservePlayerMetadata(player, metadata);
+}
+
+static void ObservePlayerVideoID(id player, id value)
+{
+    if (![value isKindOfClass:[NSString class]])
+        return;
+    VideoMetadataRecord *metadata = [VideoMetadataAdapters recordForObject:@{@"videoId" : value}];
+    if (metadata)
+        ObservePlayerMetadata(player, metadata);
+}
+
 static void RefreshTitleTree(id object, NSUInteger depth)
 {
     if (!object || depth > 12)
@@ -333,9 +422,48 @@ static void InstallTitleLabelHook(Class targetClass, SEL selector, BOOL plainTex
     });
 }
 
+static void InstallPlayerVideoIDHook(Class targetClass, SEL selector)
+{
+    if (!targetClass || !class_getInstanceMethod(targetClass, selector))
+        return;
+    DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
+        return ^id(id object, SEL selector) {
+            id value = ((id (*)(id, SEL)) original)(object, selector);
+            ObservePlayerVideoID(object, value);
+            return value;
+        };
+    });
+}
+
+static void InstallPlayerAppearanceHook(Class targetClass)
+{
+    SEL selector = @selector(viewDidAppear:);
+    if (!targetClass || !class_getInstanceMethod(targetClass, selector))
+        return;
+    DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
+        return ^(id object, SEL selector, BOOL animated) {
+            ((void (*)(id, SEL, BOOL)) original)(object, selector, animated);
+            ObservePlayer(object);
+        };
+    });
+}
+
 void DeArrowInstallTitleIntegration(void)
 {
     Class titleLabelClass = NSClassFromString(@"YTFormattedStringLabel");
     if (titleLabelClass)
         InstallTitleLabelHook(titleLabelClass, @selector(setText:), YES);
+    for (NSString *className in @[
+             @"YTPlayerViewController", @"YTReelPlayerViewController",
+             @"YTShortsPlayerViewController"
+         ])
+    {
+        Class playerClass = NSClassFromString(className);
+        if (!playerClass)
+            continue;
+        InstallPlayerVideoIDHook(playerClass, NSSelectorFromString(@"currentVideoID"));
+        InstallPlayerVideoIDHook(playerClass, NSSelectorFromString(@"contentVideoID"));
+        InstallPlayerVideoIDHook(playerClass, NSSelectorFromString(@"videoId"));
+        InstallPlayerAppearanceHook(playerClass);
+    }
 }
