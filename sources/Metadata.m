@@ -336,6 +336,35 @@ static BOOL NodeHasKnownClass(id node, NSArray<NSString *> *classNames)
     return NO;
 }
 
+static NSCache<NSString *, VideoMetadataRecord *> *MetadataCache(void)
+{
+    static NSCache<NSString *, VideoMetadataRecord *> *cache;
+    static dispatch_once_t                             onceToken;
+    dispatch_once(&onceToken, ^{
+        cache            = [NSCache new];
+        cache.countLimit = 1024;
+    });
+    return cache;
+}
+
+static VideoMetadataRecord *CacheRecord(VideoMetadataRecord *record)
+{
+    if (!record.videoID.length)
+        return nil;
+    VideoMetadataRecord *cached = [MetadataCache() objectForKey:record.videoID];
+    if (cached)
+    {
+        NSString *title   = record.title.length ? record.title : cached.title;
+        NSString *channel = record.channel.length ? record.channel : cached.channel;
+        if (![title isEqualToString:record.title] || ![channel isEqualToString:record.channel])
+            record = [[VideoMetadataRecord alloc] initWithVideoID:record.videoID
+                                                            title:title
+                                                          channel:channel];
+    }
+    [MetadataCache() setObject:record forKey:record.videoID];
+    return record;
+}
+
 @implementation VideoMetadataAdapters
 
 + (VideoMetadataRecord *)recordForNode:(id)node
@@ -343,12 +372,12 @@ static BOOL NodeHasKnownClass(id node, NSArray<NSString *> *classNames)
     if (!node)
         return nil;
     if (NodeHasKnownClass(node, @[ @"ELMCellNode" ]))
-        return RecordForElementsNode(node);
+        return CacheRecord(RecordForElementsNode(node));
     if (NodeHasKnownClass(
             node, @[ @"YTShortsNode", @"YTShortsVideoNode", @"YTReelNode", @"YTReelItemNode" ]))
-        return RecordForShortsNode(node);
+        return CacheRecord(RecordForShortsNode(node));
     if (NodeHasKnownClass(node, @[ @"YTVideoNode", @"YTVideoWithContextNode", @"YTGridVideoNode" ]))
-        return RecordForYouTubeVideoNode(node);
+        return CacheRecord(RecordForYouTubeVideoNode(node));
     return nil;
 }
 
@@ -363,7 +392,7 @@ static BOOL NodeHasKnownClass(id node, NSArray<NSString *> *classNames)
              @"navigationEndpoint", @"watchEndpoint", @"contentModel", @"currentVideo", @"data"
          ])
         AppendContainer(containers, ExplicitValue(object, key));
-    return RecordFromContainers(containers);
+    return CacheRecord(RecordFromContainers(containers));
 }
 
 + (NSString *)videoIDFromURL:(id)value
