@@ -319,18 +319,12 @@ static void ObservePlayerVideoID(id player, id value)
 {
     if (![value isKindOfClass:[NSString class]])
         return;
+    NSString *previousVideoID = objc_getAssociatedObject(player, @selector(ObservePlayerMetadata));
+    if ([previousVideoID isEqualToString:value] && DeArrowStoredMetadataForObject(player))
+        return;
     VideoMetadataRecord *metadata = [VideoMetadataAdapters recordForObject:@{@"videoId" : value}];
     if (metadata)
         ObservePlayerMetadata(player, metadata);
-}
-
-static void ObservePlayerValue(id player, id value)
-{
-    VideoMetadataRecord *metadata = [VideoMetadataAdapters recordForObject:value];
-    if (metadata)
-        ObservePlayerMetadata(player, metadata);
-    else
-        ObservePlayer(player);
 }
 
 static void RefreshTitleTree(id object, NSUInteger depth)
@@ -468,19 +462,6 @@ static void InstallPlayerVideoIDHook(Class targetClass, SEL selector)
     });
 }
 
-static void InstallPlayerObjectHook(Class targetClass, SEL selector)
-{
-    if (!targetClass || !class_getInstanceMethod(targetClass, selector))
-        return;
-    DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
-        return ^id(id object, SEL selector) {
-            id value = ((id (*)(id, SEL)) original)(object, selector);
-            ObservePlayerValue(object, value);
-            return value;
-        };
-    });
-}
-
 static void InstallPlayerTransitionHook(Class targetClass, SEL selector)
 {
     if (!targetClass || !class_getInstanceMethod(targetClass, selector))
@@ -532,9 +513,6 @@ void DeArrowInstallTitleIntegration(void)
         InstallPlayerVideoIDHook(playerClass, NSSelectorFromString(@"currentVideoID"));
         InstallPlayerVideoIDHook(playerClass, NSSelectorFromString(@"contentVideoID"));
         InstallPlayerVideoIDHook(playerClass, NSSelectorFromString(@"videoId"));
-        for (NSString *selectorName in
-             @[ @"currentVideo", @"currentVideoModel", @"currentVideoData", @"video" ])
-            InstallPlayerObjectHook(playerClass, NSSelectorFromString(selectorName));
         for (NSString *selectorName in @[
                  @"setCurrentVideo:", @"setVideo:", @"setCurrentVideoID:", @"setCurrentVideoId:",
                  @"setContentVideoID:", @"setContentVideoId:", @"setVideoId:", @"setVideoID:"
