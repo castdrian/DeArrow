@@ -191,15 +191,12 @@ static NSURLRequest *BrandingRequest(NSURL *URL, NSString *accept, NSTimeInterva
     NSString *validID = ValidVideoID(videoID);
     if (!validID)
         return nil;
-    __block BrandingRecord *record;
-    dispatch_sync(self.stateQueue, ^{
-        BrandingCacheEntry *entry = [self.cache objectForKey:validID];
-        if (entry.expiresAt.timeIntervalSinceNow > 0)
-            record = entry.record;
-        else if (entry)
-            [self.cache removeObjectForKey:validID];
-    });
-    return record;
+    BrandingCacheEntry *entry = [self.cache objectForKey:validID];
+    if (entry.expiresAt.timeIntervalSinceNow > 0)
+        return entry.record;
+    if (entry)
+        [self.cache removeObjectForKey:validID];
+    return nil;
 }
 
 - (BrandingRequestToken *)requestBrandingForVideoID:(NSString *)videoID
