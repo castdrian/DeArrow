@@ -46,10 +46,34 @@ static BOOL TextContainsURL(NSAttributedString *value)
            [text containsString:@"youtube.com/"] || [text containsString:@"youtu.be/"];
 }
 
+static void ConfigureTitleLayout(id object)
+{
+    if (!object)
+        return;
+    SEL maximumLinesSelector = NSSelectorFromString(@"setMaximumNumberOfLines:");
+    if ([object respondsToSelector:maximumLinesSelector])
+    {
+        void (*message)(id, SEL, NSUInteger) = (void (*)(id, SEL, NSUInteger)) objc_msgSend;
+        message(object, maximumLinesSelector, 0);
+    }
+    if ([object respondsToSelector:@selector(setNumberOfLines:)])
+    {
+        void (*message)(id, SEL, NSInteger) = (void (*)(id, SEL, NSInteger)) objc_msgSend;
+        message(object, @selector(setNumberOfLines:), 0);
+    }
+    if ([object respondsToSelector:@selector(setLineBreakMode:)])
+    {
+        void (*message)(id, SEL, NSLineBreakMode) =
+            (void (*)(id, SEL, NSLineBreakMode)) objc_msgSend;
+        message(object, @selector(setLineBreakMode:), NSLineBreakByWordWrapping);
+    }
+}
+
 static void ApplyTitleValue(id object, NSAttributedString *value)
 {
     BrandingBinding *binding = DeArrowBindingForObject(object, YES);
-    binding.applyingTitle    = YES;
+    ConfigureTitleLayout(object);
+    binding.applyingTitle = YES;
     [object setAttributedText:value];
     binding.applyingTitle = NO;
 }
@@ -300,6 +324,15 @@ static void ObservePlayerVideoID(id player, id value)
         ObservePlayerMetadata(player, metadata);
 }
 
+static void ObservePlayerValue(id player, id value)
+{
+    VideoMetadataRecord *metadata = [VideoMetadataAdapters recordForObject:value];
+    if (metadata)
+        ObservePlayerMetadata(player, metadata);
+    else
+        ObservePlayer(player);
+}
+
 static void RefreshTitleTree(id object, NSUInteger depth)
 {
     if (!object || depth > 12)
@@ -435,6 +468,31 @@ static void InstallPlayerVideoIDHook(Class targetClass, SEL selector)
     });
 }
 
+static void InstallPlayerObjectHook(Class targetClass, SEL selector)
+{
+    if (!targetClass || !class_getInstanceMethod(targetClass, selector))
+        return;
+    DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
+        return ^id(id object, SEL selector) {
+            id value = ((id (*)(id, SEL)) original)(object, selector);
+            ObservePlayerValue(object, value);
+            return value;
+        };
+    });
+}
+
+static void InstallPlayerTransitionHook(Class targetClass, SEL selector)
+{
+    if (!targetClass || !class_getInstanceMethod(targetClass, selector))
+        return;
+    DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
+        return ^(id object, SEL selector, id value) {
+            ((void (*)(id, SEL, id)) original)(object, selector, value);
+            ObservePlayer(object);
+        };
+    });
+}
+
 static void InstallPlayerAppearanceHook(Class targetClass)
 {
     SEL selector = @selector(viewDidAppear:);
@@ -450,12 +508,22 @@ static void InstallPlayerAppearanceHook(Class targetClass)
 
 void DeArrowInstallTitleIntegration(void)
 {
-    Class titleLabelClass = NSClassFromString(@"YTFormattedStringLabel");
-    if (titleLabelClass)
-        InstallTitleLabelHook(titleLabelClass, @selector(setText:), YES);
+    for (NSString *className in
+         @[ @"YTNewFormattedLabel", @"YTFormattedStringLabel", @"ELMTextNode", @"ASTextNode" ])
+    {
+        Class titleClass = NSClassFromString(className);
+        if (titleClass)
+            InstallTitleLabelHook(titleClass, @selector(setAttributedText:), NO);
+    }
+    for (NSString *className in @[ @"YTNewFormattedLabel", @"YTFormattedStringLabel" ])
+    {
+        Class titleClass = NSClassFromString(className);
+        if (titleClass)
+            InstallTitleLabelHook(titleClass, @selector(setText:), YES);
+    }
     for (NSString *className in @[
              @"YTPlayerViewController", @"YTReelPlayerViewController",
-             @"YTShortsPlayerViewController"
+             @"YTShortsPlayerViewController", @"YTWatchViewController", @"YTWatchController"
          ])
     {
         Class playerClass = NSClassFromString(className);
@@ -464,6 +532,14 @@ void DeArrowInstallTitleIntegration(void)
         InstallPlayerVideoIDHook(playerClass, NSSelectorFromString(@"currentVideoID"));
         InstallPlayerVideoIDHook(playerClass, NSSelectorFromString(@"contentVideoID"));
         InstallPlayerVideoIDHook(playerClass, NSSelectorFromString(@"videoId"));
+        for (NSString *selectorName in
+             @[ @"currentVideo", @"currentVideoModel", @"currentVideoData", @"video" ])
+            InstallPlayerObjectHook(playerClass, NSSelectorFromString(selectorName));
+        for (NSString *selectorName in @[
+                 @"setCurrentVideo:", @"setVideo:", @"setCurrentVideoID:", @"setCurrentVideoId:",
+                 @"setContentVideoID:", @"setContentVideoId:", @"setVideoId:", @"setVideoID:"
+             ])
+            InstallPlayerTransitionHook(playerClass, NSSelectorFromString(selectorName));
         InstallPlayerAppearanceHook(playerClass);
     }
 }
