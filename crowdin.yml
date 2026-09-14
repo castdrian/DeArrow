@@ -1,0 +1,5 @@
+files:
+  - source: "/layout/Library/Application Support/DeArrow.bundle/en.lproj/Localizable.strings"
+    translation: "/layout/Library/Application Support/DeArrow.bundle/%osx_code%/Localizable.strings"
+    skip_untranslated_files: true
+    preserve_hierarchy: true
