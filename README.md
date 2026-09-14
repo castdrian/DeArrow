@@ -2,6 +2,7 @@
 
 [![Release](https://github.com/castdrian/DeArrow/actions/workflows/release.yml/badge.svg)](https://github.com/castdrian/DeArrow/actions/workflows/release.yml)
 [![Build](https://github.com/castdrian/DeArrow/actions/workflows/build.yml/badge.svg)](https://github.com/castdrian/DeArrow/actions/workflows/build.yml)
+[![Crowdin](https://img.shields.io/badge/Crowdin-Translations-2ab27b?logo=crowdin&logoColor=white)](https://crowdin.com/project/dearrow)
 
 YouTube tweak that brings community-submitted titles and thumbnails to YouTube for iOS.
 

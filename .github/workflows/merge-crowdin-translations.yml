@@ -1,0 +1,75 @@
+name: Merge Crowdin translations
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  merge:
+    if: >-
+      github.event.pull_request.base.ref == 'main' &&
+      github.event.pull_request.head.ref == 'l10n_crowdin_translations' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout translation branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Validate changed files
+        id: validate
+        env:
+          GH_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          source_file="layout/Library/Application Support/DeArrow.bundle/en.lproj/Localizable.strings"
+          bundle_prefix="layout/Library/Application Support/DeArrow.bundle/"
+          files=$(gh api --paginate "repos/${REPOSITORY}/pulls/${PR_NUMBER}/files" --jq '.[].filename')
+          test -n "$files"
+          translated=0
+          while IFS= read -r file; do
+            case "$file" in
+              "${bundle_prefix}en.lproj/Localizable.strings")
+                exit 1
+                ;;
+              "${bundle_prefix}"*.lproj/Localizable.strings)
+                test -f "$file"
+                if ! cmp -s "$source_file" "$file"; then
+                  translated=1
+                fi
+                ;;
+              *)
+                exit 1
+                ;;
+            esac
+          done <<< "$files"
+          echo "has_translations=$translated" >> "$GITHUB_OUTPUT"
+      - name: Close empty translation pull request
+        if: steps.validate.outputs.has_translations != '1'
+        env:
+          GH_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: >-
+          gh pr close "$PR_NUMBER" --repo "$REPOSITORY" --delete-branch
+          --comment "Crowdin exported no translated values, so this no-op pull request was closed."
+      - name: Enable automatic merge
+        if: steps.validate.outputs.has_translations == '1'
+        env:
+          GH_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: gh pr merge "$PR_NUMBER" --repo "$REPOSITORY" --squash --auto --delete-branch
