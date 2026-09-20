@@ -29,14 +29,14 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-          token: ${{ secrets.REPO_ACCESS_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
           go-version: stable
       - name: Validate changed files
         env:
-          GH_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPOSITORY: ${{ github.repository }}
         run: |
@@ -72,5 +72,5 @@ jobs:
           git push origin HEAD:main
       - name: Dispatch release workflow
         env:
-          GH_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref main
