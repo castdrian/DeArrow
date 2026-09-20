@@ -707,7 +707,7 @@ func verifyArchitecture(root string) error {
 	if err := requireContains(root, "sources/SettingsIntegration.m", "SettingsIntegrationHostReady", "setSectionItems:forCategory:title:icon:titleDescription:headerHidden:"); err != nil {
 		return err
 	}
-	if err := requireTreeExcludes(root, "sources", "ELMImageDownloader", "PXLDeArrow", "DeArrowCategoryPending"); err != nil {
+	if err := requireTreeExcludes(root, "sources", "ELMImageDownloader", "PXLDeArrow", "DeArrowCategoryPending", "yogaChildren", "DeArrowRefreshTitleTree", "DeArrowAssociateMetadataTree"); err != nil {
 		return err
 	}
 	if err := requireExcludes(root, "sources/SettingsIntegration.m", "setTitle:"); err != nil {

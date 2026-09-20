@@ -27,12 +27,27 @@ static BOOL DeclaresObjectSetter(Class targetClass, SEL selector)
     return found;
 }
 
+static BOOL IsLikelyVideoThumbnail(UIImage *image)
+{
+    if (!image)
+        return NO;
+    CGFloat width  = image.size.width;
+    CGFloat height = image.size.height;
+    if (width < 80.0 || height < 40.0)
+        return NO;
+    CGFloat larger  = MAX(width, height);
+    CGFloat smaller = MIN(width, height);
+    return smaller > 0.0 && larger / smaller >= 1.25;
+}
+
 static void ApplyThumbnailToObject(id object, BOOL animated)
 {
     if (!object || [DeArrowPreferences sharedPreferences].isEnabled == NO ||
         [DeArrowPreferences sharedPreferences].replaceThumbnails == NO)
         return;
-    VideoMetadataRecord *metadata = DeArrowStoredMetadataForObject(object);
+    VideoMetadataRecord *metadata = DeArrowMetadataForAncestor(object);
+    if (!metadata)
+        metadata = DeArrowStoredMetadataForObject(object);
     if (!metadata || !metadata.videoID.length)
         return;
     BrandingBinding *binding = DeArrowBindingForObject(object, YES);
@@ -139,11 +154,17 @@ static void InstallImageNodeSetter(Class targetClass)
         return ^(id object, SEL selector, UIImage *image) {
             BrandingBinding *binding = DeArrowBindingForObject(object, NO);
             ((void (*)(id, SEL, UIImage *)) original)(object, selector, image);
-            if (binding && !binding.applyingThumbnail)
-            {
+            if (binding && binding.applyingThumbnail)
+                return;
+            if (!IsLikelyVideoThumbnail(image))
+                return;
+            VideoMetadataRecord *metadata = DeArrowMetadataForAncestor(object);
+            if (metadata)
+                DeArrowAssociateMetadata(object, metadata);
+            binding = DeArrowBindingForObject(object, NO);
+            if (binding)
                 binding.originalImage = image;
-                ApplyThumbnailToObject(object, NO);
-            }
+            ApplyThumbnailToObject(object, NO);
         };
     });
 }

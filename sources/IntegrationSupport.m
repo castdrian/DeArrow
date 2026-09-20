@@ -63,6 +63,45 @@ VideoMetadataRecord *DeArrowStoredMetadataForObject(id object)
     return DeArrowBindingForObject(object, NO).metadata;
 }
 
+static id DeArrowParentObject(id object)
+{
+    if (!object)
+        return nil;
+    static SEL             yogaParentSelector;
+    static SEL             supernodeSelector;
+    static SEL             superNodeSelector;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        yogaParentSelector = sel_registerName("yogaParent");
+        supernodeSelector  = sel_registerName("supernode");
+        superNodeSelector  = sel_registerName("superNode");
+    });
+    SEL selectors[] = {yogaParentSelector, supernodeSelector, superNodeSelector};
+    for (NSUInteger index = 0; index < sizeof(selectors) / sizeof(selectors[0]); index++)
+    {
+        SEL selector = selectors[index];
+        if (![object respondsToSelector:selector])
+            continue;
+        id parent = ((id (*)(id, SEL)) objc_msgSend)(object, selector);
+        if (parent && parent != object)
+            return parent;
+    }
+    return nil;
+}
+
+VideoMetadataRecord *DeArrowMetadataForAncestor(id object)
+{
+    id current = object;
+    for (NSUInteger depth = 0; current && depth < 16; depth++)
+    {
+        current                       = DeArrowParentObject(current);
+        VideoMetadataRecord *metadata = DeArrowStoredMetadataForObject(current);
+        if (metadata)
+            return metadata;
+    }
+    return nil;
+}
+
 void DeArrowAssociateMetadata(id object, VideoMetadataRecord *metadata)
 {
     if (!object || !metadata.videoID.length)
@@ -113,29 +152,6 @@ void DeArrowAssociateVideoID(id object, NSString *videoID)
     DeArrowAssociateMetadata(object, [[VideoMetadataRecord alloc] initWithVideoID:videoID
                                                                             title:nil
                                                                           channel:nil]);
-}
-
-void DeArrowPropagateMetadata(id parent, id child)
-{
-    VideoMetadataRecord *metadata = DeArrowStoredMetadataForObject(parent);
-    if (metadata)
-        DeArrowAssociateMetadata(child, metadata);
-}
-
-VideoMetadataRecord *DeArrowMetadataForObject(id object)
-{
-    if (!object)
-        return nil;
-    BrandingBinding *binding = DeArrowBindingForObject(object, YES);
-    if (binding.metadata)
-        return binding.metadata;
-    if (binding.metadataAttempted)
-        return nil;
-    binding.metadataAttempted     = YES;
-    VideoMetadataRecord *metadata = [VideoMetadataAdapters recordForNode:object];
-    if (metadata)
-        DeArrowAssociateMetadata(object, metadata);
-    return metadata;
 }
 
 void DeArrowCancelBinding(id object)

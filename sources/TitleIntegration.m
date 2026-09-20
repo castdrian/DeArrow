@@ -157,22 +157,6 @@ void DeArrowRefreshTitleObject(id object)
     RequestTitle(object, binding);
 }
 
-static NSArray *TitleChildren(id object)
-{
-    if (!object || ![object respondsToSelector:NSSelectorFromString(@"yogaChildren")])
-        return nil;
-    @try
-    {
-        id children = [object valueForKey:@"yogaChildren"];
-        if ([children isKindOfClass:[NSArray class]])
-            return children;
-    }
-    @catch (__unused NSException *exception)
-    {
-    }
-    return nil;
-}
-
 static BOOL IsTitleObject(id object)
 {
     return object && [object respondsToSelector:@selector(attributedText)] &&
@@ -327,40 +311,12 @@ static void ObservePlayerVideoID(id player, id value)
         ObservePlayerMetadata(player, metadata);
 }
 
-static void RefreshTitleTree(id object, NSUInteger depth)
-{
-    if (!object || depth > 12)
-        return;
-    VideoMetadataRecord *metadata = DeArrowStoredMetadataForObject(object);
-    if (!metadata)
-        return;
-    for (id child in TitleChildren(object))
-    {
-        CaptureTitleObject(child, metadata);
-        RefreshTitleTree(child, depth + 1);
-    }
-}
-
-void DeArrowRefreshTitleTree(id object)
-{
-    if (!object)
-        return;
-    if (!NSThread.isMainThread)
-    {
-        __weak id weakObject = object;
-        dispatch_async(dispatch_get_main_queue(), ^{
-            id strongObject = weakObject;
-            if (strongObject)
-                DeArrowRefreshTitleTree(strongObject);
-        });
-        return;
-    }
-    RefreshTitleTree(object, 0);
-}
-
 static VideoMetadataRecord *MetadataForTitleObject(id object)
 {
-    VideoMetadataRecord *metadata = DeArrowStoredMetadataForObject(object);
+    VideoMetadataRecord *metadata = DeArrowMetadataForAncestor(object);
+    if (metadata)
+        return metadata;
+    metadata = DeArrowStoredMetadataForObject(object);
     if (metadata)
         return metadata;
     UIViewController *player = PlayerControllerForObject(object);
@@ -378,13 +334,13 @@ static void HandleAttributedTitle(id object, SEL selector, NSAttributedString *v
         ((void (*)(id, SEL, NSAttributedString *)) original)(object, selector, value);
         return;
     }
-    if (TextContainsURL(value))
+    VideoMetadataRecord *metadata = MetadataForTitleObject(object);
+    if (!metadata || !metadata.videoID.length)
     {
         ((void (*)(id, SEL, NSAttributedString *)) original)(object, selector, value);
         return;
     }
-    VideoMetadataRecord *metadata = MetadataForTitleObject(object);
-    if (!metadata || !metadata.videoID.length)
+    if (TextContainsURL(value))
     {
         ((void (*)(id, SEL, NSAttributedString *)) original)(object, selector, value);
         return;
@@ -494,7 +450,18 @@ static void InstallPlayerAppearanceHook(Class targetClass)
 
 void DeArrowInstallTitleIntegration(void)
 {
-    for (NSString *className in @[ @"YTNewFormattedLabel" ])
+    Class textNodeClass = NSClassFromString(@"ASTextNode");
+    if (textNodeClass)
+        InstallTitleLabelHook(textNodeClass, @selector(setAttributedText:), NO);
+
+    Class elementTextNodeClass = NSClassFromString(@"ELMTextNode");
+    if (elementTextNodeClass &&
+        (!textNodeClass ||
+         class_getMethodImplementation(elementTextNodeClass, @selector(setAttributedText:)) !=
+             class_getMethodImplementation(textNodeClass, @selector(setAttributedText:))))
+        InstallTitleLabelHook(elementTextNodeClass, @selector(setAttributedText:), NO);
+
+    for (NSString *className in @[ @"YTFormattedStringLabel", @"YTNewFormattedLabel" ])
     {
         Class titleClass = NSClassFromString(className);
         if (titleClass)
