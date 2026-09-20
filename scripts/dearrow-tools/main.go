@@ -713,6 +713,9 @@ func verifyArchitecture(root string) error {
 	if err := requireExcludes(root, "sources/SettingsIntegration.m", "setTitle:"); err != nil {
 		return err
 	}
+	if err := requireExcludes(root, "sources/Settings.x", "setTitle:", "dispatch_after", "SettingsHostWasAnnounced"); err != nil {
+		return err
+	}
 	if err := requireContains(root, ".github/FUNDING.yml", "ko_fi: castdrian"); err != nil {
 		return err
 	}

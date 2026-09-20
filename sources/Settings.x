@@ -8,7 +8,6 @@
 
 static const NSUInteger SettingsGroup    = 0x64617270;
 static const NSUInteger SettingsCategory = 0x64617272;
-static BOOL SettingsHostWasAnnounced    = NO;
 static void *SettingsManagerKey         = &SettingsManagerKey;
 static void *SettingsControllerKey      = &SettingsControllerKey;
 
@@ -274,10 +273,7 @@ static BOOL SettingsCandidateIsTarget(UIViewController *candidate)
     if (customSettingsClass && [candidate isKindOfClass:customSettingsClass])
         return NO;
     NSNumber *category = SettingsCategoryForCandidate(candidate);
-    if (category)
-        return category.unsignedIntegerValue == SettingsCategory;
-    NSString *title = candidate.title.length > 0 ? candidate.title : candidate.navigationItem.title;
-    return [title isEqualToString:@"DeArrow"];
+    return category && category.unsignedIntegerValue == SettingsCategory;
 }
 
 static UIViewController *CustomSettingsDestination(YTSettingsViewController *controller)
@@ -343,6 +339,8 @@ static UIViewController *CustomSplitDestination(YTSettingsViewController *contro
 + (NSArray *)orderedGroups
 {
     NSArray *groups = %orig;
+    if (SettingsHostAvailable())
+        return groups;
     for (YTSettingsGroupData *group in groups)
     {
         if (group.type == SettingsGroup)
@@ -360,28 +358,13 @@ static UIViewController *CustomSplitDestination(YTSettingsViewController *contro
 
 %hook YTSettingsGroupData
 
-%new
-+ (NSArray<NSNumber *> *)settingsIntegrationCategories
-{
-    @synchronized(StandaloneCategories())
-    {
-        return StandaloneCategories().copy;
-    }
-}
-
-%new
-+ (void)registerSettingsIntegrationCategory:(NSInteger)category
-{
-    NSNumber *value = @(category);
-    @synchronized(StandaloneCategories())
-    {
-        if (![StandaloneCategories() containsObject:value])
-            [StandaloneCategories() addObject:value];
-    }
-}
-
 - (NSArray<NSNumber *> *)orderedCategories
 {
+    if (SettingsHostAvailable())
+    {
+        NSArray *categories = %orig;
+        return categories;
+    }
     if (self.type == SettingsGroup)
         return StandaloneCategories().copy;
     NSArray *categories = %orig;
@@ -390,6 +373,11 @@ static UIViewController *CustomSplitDestination(YTSettingsViewController *contro
 
 - (NSArray<NSNumber *> *)orderedCategoriesForGroupType:(NSUInteger)type
 {
+    if (SettingsHostAvailable())
+    {
+        NSArray *categories = %orig;
+        return categories;
+    }
     if (type == SettingsGroup)
         return StandaloneCategories().copy;
     NSArray *categories = %orig;
@@ -398,42 +386,56 @@ static UIViewController *CustomSplitDestination(YTSettingsViewController *contro
 
 - (NSArray<NSNumber *> *)accountCategories
 {
+    if (SettingsHostAvailable())
+        return %orig;
     NSArray *categories = %orig;
     return CategoriesWithoutStandalone(categories);
 }
 
 - (NSArray<NSNumber *> *)appPreferenceCategories
 {
+    if (SettingsHostAvailable())
+        return %orig;
     NSArray *categories = %orig;
     return CategoriesWithoutStandalone(categories);
 }
 
 - (NSArray<NSNumber *> *)videoPreferencesCategories
 {
+    if (SettingsHostAvailable())
+        return %orig;
     NSArray *categories = %orig;
     return CategoriesWithoutStandalone(categories);
 }
 
 - (NSArray<NSNumber *> *)privacyCategories
 {
+    if (SettingsHostAvailable())
+        return %orig;
     NSArray *categories = %orig;
     return CategoriesWithoutStandalone(categories);
 }
 
 - (NSArray<NSNumber *> *)miscellaneousCategories
 {
+    if (SettingsHostAvailable())
+        return %orig;
     NSArray *categories = %orig;
     return CategoriesWithoutStandalone(categories);
 }
 
 - (NSArray<NSNumber *> *)developmentCategories
 {
+    if (SettingsHostAvailable())
+        return %orig;
     NSArray *categories = %orig;
     return CategoriesWithoutStandalone(categories);
 }
 
 - (NSString *)titleForSettingGroupType:(NSUInteger)type
 {
+    if (SettingsHostAvailable())
+        return %orig;
     if (type == SettingsGroup)
         return nil;
     return %orig;
@@ -462,6 +464,11 @@ static UIViewController *CustomSplitDestination(YTSettingsViewController *contro
 
 - (void)updateSectionForCategory:(NSUInteger)category withEntry:(id)entry
 {
+    if (SettingsHostAvailable())
+    {
+        %orig;
+        return;
+    }
     if (category == SettingsCategory)
     {
         YTSettingsViewController *controller = SettingsControllerForManager(self);
@@ -478,6 +485,11 @@ static UIViewController *CustomSplitDestination(YTSettingsViewController *contro
 
 - (void)sendSettingsNavigationEndpointForCategory:(NSUInteger)category
 {
+    if (SettingsHostAvailable())
+    {
+        %orig(category);
+        return;
+    }
     if (category == SettingsCategory && PushCustomSettings(self, YES))
         return;
     %orig(category);
@@ -485,6 +497,11 @@ static UIViewController *CustomSplitDestination(YTSettingsViewController *contro
 
 - (void)didReceiveDrillDownItem:(id)item
 {
+    if (SettingsHostAvailable())
+    {
+        %orig(item);
+        return;
+    }
     NSNumber *category = SettingsCategoryValue(item);
     if (category.unsignedIntegerValue == SettingsCategory && PushCustomSettings(self, YES))
         return;
@@ -493,6 +510,11 @@ static UIViewController *CustomSplitDestination(YTSettingsViewController *contro
 
 - (void)pushViewController:(UIViewController *)viewController animated:(BOOL)animated
 {
+    if (SettingsHostAvailable())
+    {
+        %orig(viewController, animated);
+        return;
+    }
     if (SettingsCandidateIsTarget(viewController))
     {
         UIViewController *destination = CustomSettingsDestination(self);
@@ -507,11 +529,21 @@ static UIViewController *CustomSplitDestination(YTSettingsViewController *contro
 
 - (void)pushViewController:(UIViewController *)viewController
 {
+    if (SettingsHostAvailable())
+    {
+        %orig(viewController);
+        return;
+    }
     [self pushViewController:viewController animated:YES];
 }
 
 - (void)showOrPushViewController:(UIViewController *)viewController
 {
+    if (SettingsHostAvailable())
+    {
+        %orig(viewController);
+        return;
+    }
     if (SettingsCandidateIsTarget(viewController))
     {
         UIViewController *destination = CustomSettingsDestination(self);
@@ -526,6 +558,11 @@ static UIViewController *CustomSplitDestination(YTSettingsViewController *contro
 
 - (void)showViewController:(UIViewController *)viewController sender:(id)sender
 {
+    if (SettingsHostAvailable())
+    {
+        %orig(viewController, sender);
+        return;
+    }
     if (SettingsCandidateIsTarget(viewController))
     {
         UIViewController *destination = CustomSettingsDestination(self);
@@ -544,6 +581,11 @@ static UIViewController *CustomSplitDestination(YTSettingsViewController *contro
 
 - (void)pushViewController:(UIViewController *)viewController animated:(BOOL)animated
 {
+    if (SettingsHostAvailable())
+    {
+        %orig(viewController, animated);
+        return;
+    }
     YTSettingsViewController *controller = SettingsControllerInViewController(self, 0);
     if (controller && SettingsCandidateIsTarget(viewController))
     {
@@ -559,6 +601,11 @@ static UIViewController *CustomSplitDestination(YTSettingsViewController *contro
 
 - (void)pushViewController:(UIViewController *)viewController
 {
+    if (SettingsHostAvailable())
+    {
+        %orig(viewController);
+        return;
+    }
     YTSettingsViewController *controller = SettingsControllerInViewController(self, 0);
     if (controller && SettingsCandidateIsTarget(viewController))
     {
@@ -574,6 +621,11 @@ static UIViewController *CustomSplitDestination(YTSettingsViewController *contro
 
 - (void)showOrPushViewController:(UIViewController *)viewController
 {
+    if (SettingsHostAvailable())
+    {
+        %orig(viewController);
+        return;
+    }
     YTSettingsViewController *controller = SettingsControllerInViewController(self, 0);
     if (controller && SettingsCandidateIsTarget(viewController))
     {
@@ -589,6 +641,11 @@ static UIViewController *CustomSplitDestination(YTSettingsViewController *contro
 
 - (void)showViewController:(UIViewController *)viewController sender:(id)sender
 {
+    if (SettingsHostAvailable())
+    {
+        %orig(viewController, sender);
+        return;
+    }
     YTSettingsViewController *controller = SettingsControllerInViewController(self, 0);
     if (controller && SettingsCandidateIsTarget(viewController))
     {
@@ -604,6 +661,11 @@ static UIViewController *CustomSplitDestination(YTSettingsViewController *contro
 
 - (void)setViewControllers:(NSArray<UIViewController *> *)viewControllers
 {
+    if (SettingsHostAvailable())
+    {
+        %orig(viewControllers);
+        return;
+    }
     YTSettingsViewController *controller = SettingsControllerInViewController(self, 0);
     if (!controller)
     {
@@ -629,6 +691,11 @@ static UIViewController *CustomSplitDestination(YTSettingsViewController *contro
 
 - (void)setViewControllers:(NSArray<UIViewController *> *)viewControllers animated:(BOOL)animated
 {
+    if (SettingsHostAvailable())
+    {
+        %orig(viewControllers, animated);
+        return;
+    }
     YTSettingsViewController *controller = SettingsControllerInViewController(self, 0);
     if (!controller)
     {
@@ -658,6 +725,11 @@ static UIViewController *CustomSplitDestination(YTSettingsViewController *contro
 
 - (void)setSecondViewController:(UIViewController *)viewController
 {
+    if (SettingsHostAvailable())
+    {
+        %orig(viewController);
+        return;
+    }
     UIViewController *master = SettingsValue(self, @"viewController");
     YTSettingsViewController *controller = SettingsControllerInViewController(master, 0);
     if (!controller)
@@ -680,16 +752,5 @@ static UIViewController *CustomSplitDestination(YTSettingsViewController *contro
 
 %ctor
 {
-    [[NSNotificationCenter defaultCenter]
-        addObserverForName:@"SettingsIntegrationHostReady"
-                    object:nil
-                     queue:[NSOperationQueue mainQueue]
-                usingBlock:^(__unused NSNotification *notification) {
-                    SettingsHostWasAnnounced = YES;
-                }];
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2500 * NSEC_PER_MSEC)),
-                   dispatch_get_main_queue(), ^{
-                       if (!SettingsHostWasAnnounced && !SettingsHostAvailable())
-                           %init(StandaloneSettings);
-                   });
+    %init(StandaloneSettings);
 }
