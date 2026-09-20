@@ -384,44 +384,52 @@ static UIViewController *CustomSplitDestination(YTSettingsViewController *contro
 {
     if (self.type == SettingsGroup)
         return StandaloneCategories().copy;
-    return CategoriesWithoutStandalone(%orig);
+    NSArray *categories = %orig;
+    return CategoriesWithoutStandalone(categories);
 }
 
 - (NSArray<NSNumber *> *)orderedCategoriesForGroupType:(NSUInteger)type
 {
     if (type == SettingsGroup)
         return StandaloneCategories().copy;
-    return CategoriesWithoutStandalone(%orig);
+    NSArray *categories = %orig;
+    return CategoriesWithoutStandalone(categories);
 }
 
 - (NSArray<NSNumber *> *)accountCategories
 {
-    return CategoriesWithoutStandalone(%orig);
+    NSArray *categories = %orig;
+    return CategoriesWithoutStandalone(categories);
 }
 
 - (NSArray<NSNumber *> *)appPreferenceCategories
 {
-    return CategoriesWithoutStandalone(%orig);
+    NSArray *categories = %orig;
+    return CategoriesWithoutStandalone(categories);
 }
 
 - (NSArray<NSNumber *> *)videoPreferencesCategories
 {
-    return CategoriesWithoutStandalone(%orig);
+    NSArray *categories = %orig;
+    return CategoriesWithoutStandalone(categories);
 }
 
 - (NSArray<NSNumber *> *)privacyCategories
 {
-    return CategoriesWithoutStandalone(%orig);
+    NSArray *categories = %orig;
+    return CategoriesWithoutStandalone(categories);
 }
 
 - (NSArray<NSNumber *> *)miscellaneousCategories
 {
-    return CategoriesWithoutStandalone(%orig);
+    NSArray *categories = %orig;
+    return CategoriesWithoutStandalone(categories);
 }
 
 - (NSArray<NSNumber *> *)developmentCategories
 {
-    return CategoriesWithoutStandalone(%orig);
+    NSArray *categories = %orig;
+    return CategoriesWithoutStandalone(categories);
 }
 
 - (NSString *)titleForSettingGroupType:(NSUInteger)type
