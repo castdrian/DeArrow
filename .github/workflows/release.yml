@@ -34,8 +34,9 @@ jobs:
         run: git clone --depth 1 https://github.com/PoomSmart/YouTubeHeader "$THEOS/include/YouTubeHeader"
       - name: Install GNU Make
         run: |
-          brew install make
+          brew install make clang-format
           gmake --version
+          clang-format --version
       - name: Read package metadata
         run: |
           PACKAGE=$(grep '^Package:' control | cut -d ' ' -f 2)
