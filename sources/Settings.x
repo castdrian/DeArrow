@@ -19,13 +19,6 @@ static BOOL SettingsHostAvailable(void)
     return groupClass && [groupClass respondsToSelector:selector];
 }
 
-static BOOL SharedSettingsTweakPresent(void)
-{
-    NSFileManager *fileManager = [NSFileManager defaultManager];
-    return [fileManager fileExistsAtPath:@"/var/jb/Library/MobileSubstrate/DynamicLibraries/Gonerino.dylib"] ||
-           [fileManager fileExistsAtPath:@"/Library/MobileSubstrate/DynamicLibraries/Gonerino.dylib"];
-}
-
 static id SettingsIvarValue(id object, const char *name)
 {
     if (!object || !name)
@@ -277,6 +270,9 @@ static NSNumber *SettingsCategoryForCandidate(UIViewController *candidate)
 
 static BOOL SettingsCandidateIsTarget(UIViewController *candidate)
 {
+    Class customSettingsClass = NSClassFromString(@"DeArrowSettingsViewController");
+    if (customSettingsClass && [candidate isKindOfClass:customSettingsClass])
+        return NO;
     NSNumber *category = SettingsCategoryForCandidate(candidate);
     if (category)
         return category.unsignedIntegerValue == SettingsCategory;
@@ -685,8 +681,7 @@ static UIViewController *CustomSplitDestination(YTSettingsViewController *contro
                 }];
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2500 * NSEC_PER_MSEC)),
                    dispatch_get_main_queue(), ^{
-                       if (!SettingsHostWasAnnounced && !SettingsHostAvailable() &&
-                           !SharedSettingsTweakPresent())
+                       if (!SettingsHostWasAnnounced && !SettingsHostAvailable())
                            %init(StandaloneSettings);
                    });
 }
