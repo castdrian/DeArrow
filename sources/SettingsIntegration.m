@@ -127,27 +127,27 @@ UIImage *SettingsIconImage(void)
         CGSize size = CGSizeMake(24.0, 24.0);
         UIGraphicsBeginImageContextWithOptions(size, NO, 0.0);
         [[UIColor whiteColor] setFill];
-        UIBezierPath *top = [UIBezierPath bezierPath];
-        [top moveToPoint:CGPointMake(5.8, 6.375)];
-        [top addLineToPoint:CGPointMake(18.2, 6.375)];
-        [top addLineToPoint:CGPointMake(14.25, 12.0)];
-        [top addLineToPoint:CGPointMake(9.75, 12.0)];
-        [top closePath];
-        [top fill];
-        UIBezierPath *bottom = [UIBezierPath bezierPath];
-        [bottom moveToPoint:CGPointMake(5.8, 17.625)];
-        [bottom addLineToPoint:CGPointMake(18.2, 17.625)];
-        [bottom addLineToPoint:CGPointMake(14.25, 12.0)];
-        [bottom addLineToPoint:CGPointMake(9.75, 12.0)];
-        [bottom closePath];
-        [bottom fill];
-        [[UIBezierPath bezierPathWithArcCenter:CGPointMake(12.1875, 12.0)
-                                        radius:2.25
+        UIBezierPath *mark = [UIBezierPath bezierPath];
+        [mark moveToPoint:CGPointMake(size.width * 31.0 / 128.0, size.height * 34.0 / 128.0)];
+        [mark addLineToPoint:CGPointMake(size.width * 97.0 / 128.0, size.height * 34.0 / 128.0)];
+        [mark addLineToPoint:CGPointMake(size.width * 76.0 / 128.0, size.height * 64.0 / 128.0)];
+        [mark addLineToPoint:CGPointMake(size.width * 97.0 / 128.0, size.height * 94.0 / 128.0)];
+        [mark addLineToPoint:CGPointMake(size.width * 31.0 / 128.0, size.height * 94.0 / 128.0)];
+        [mark addLineToPoint:CGPointMake(size.width * 52.0 / 128.0, size.height * 64.0 / 128.0)];
+        [mark closePath];
+        [mark fill];
+        CGContextRef context = UIGraphicsGetCurrentContext();
+        CGContextSetBlendMode(context, kCGBlendModeClear);
+        [[UIBezierPath bezierPathWithArcCenter:CGPointMake(size.width * 65.0 / 128.0,
+                                                            size.height * 64.0 / 128.0)
+                                        radius:size.width * 12.0 / 128.0
                                     startAngle:0.0
                                       endAngle:2.0 * M_PI
-                                     clockwise:YES] fill];
+                                     clockwise:YES]
+            fill];
+        CGContextSetBlendMode(context, kCGBlendModeNormal);
         image = [UIGraphicsGetImageFromCurrentImageContext()
-            imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+            imageWithRenderingMode:UIImageRenderingModeAlwaysOriginal];
         UIGraphicsEndImageContext();
     });
     return image;
