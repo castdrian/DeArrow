@@ -45,11 +45,10 @@ The package is written to `packages/`.
 
 ## Testing
 
-Run the deterministic fixture and architecture checks with:
+Run the complete local validation suite with:
 
 ```sh
-gmake test
-gmake verify-architecture
+gmake check
 go run ./scripts/branding-smoke
 ```
 

@@ -13,9 +13,12 @@ DeArrow_FRAMEWORKS = UIKit Foundation
 DEARROW_VERSION := $(shell sed -n 's/^Version: //p' control)
 DeArrow_CFLAGS = -Wno-deprecated-declarations -Wno-nullability-completeness -Wno-objc-method-access -fobjc-arc -Iheaders -DPACKAGE_VERSION='@"$(DEARROW_VERSION)"'
 
+FORMAT_OBJC_FILES := $(shell find headers sources -type f \( -name "*.h" -o -name "*.m" \))
+FORMAT_GO_FILES := $(shell find scripts tools -type f -name "*.go")
+
 include $(THEOS_MAKE_PATH)/tweak.mk
 
-.PHONY: test verify-architecture release-dry-run
+.PHONY: test verify-architecture release-dry-run format format-check check
 
 test:
 	go test ./...
@@ -25,3 +28,13 @@ verify-architecture:
 
 release-dry-run:
 	go run ./scripts/dearrow-tools release-dry-run
+
+format:
+	clang-format -i $(FORMAT_OBJC_FILES)
+	gofmt -w $(FORMAT_GO_FILES)
+
+format-check:
+	clang-format --dry-run --Werror --style=file $(FORMAT_OBJC_FILES)
+	test -z "$(shell gofmt -l $(FORMAT_GO_FILES))"
+
+check: format-check test verify-architecture release-dry-run
