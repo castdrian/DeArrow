@@ -147,27 +147,6 @@ static NSAttributedString *RenderedDeArrowChangelog(void)
 
 @end
 
-static UIView *DeArrowChangelogAccessory(void)
-{
-    UIView  *container       = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, 72.0, 28.0)];
-    UILabel *badge           = [[UILabel alloc] initWithFrame:CGRectMake(0.0, 3.0, 38.0, 22.0)];
-    badge.text               = DeArrowLocalized(@"NEW", @"NEW");
-    badge.textColor          = UIColor.whiteColor;
-    badge.backgroundColor    = UIColor.systemRedColor;
-    badge.font               = [UIFont systemFontOfSize:11.0 weight:UIFontWeightBold];
-    badge.textAlignment      = NSTextAlignmentCenter;
-    badge.layer.cornerRadius = 8.0;
-    badge.clipsToBounds      = YES;
-    UIImageView *chevron =
-        [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"chevron.right"]];
-    chevron.frame       = CGRectMake(52.0, 7.0, 14.0, 14.0);
-    chevron.tintColor   = UIColor.tertiaryLabelColor;
-    chevron.contentMode = UIViewContentModeScaleAspectFit;
-    [container addSubview:badge];
-    [container addSubview:chevron];
-    return container;
-}
-
 typedef NS_ENUM(NSInteger, DeArrowSettingsSection) {
     DeArrowSettingsSectionSupport,
     DeArrowSettingsSectionFiltering,
@@ -304,7 +283,7 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
         return 3;
     if (section == DeArrowSettingsSectionCache)
         return 1;
-    return 3;
+    return 1;
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section
@@ -330,46 +309,89 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
     return DeArrowLocalized(@"REPLACE_THUMBNAILS_DETAIL", @"Use community-submitted thumbnails");
 }
 
-- (UITableViewCell *)donationCellForTableView:(UITableView *)tableView
+- (UITableViewCell *)buttonCellForTableView:(UITableView *)tableView
+                                  indexPath:(NSIndexPath *)indexPath
 {
-    static NSString *identifier = @"DeArrowDonationCell";
+    static NSString *identifier = @"DeArrowButtonCell";
     UITableViewCell *cell       = [tableView dequeueReusableCellWithIdentifier:identifier];
     if (!cell)
         cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
                                       reuseIdentifier:identifier];
     for (UIView *subview in cell.contentView.subviews)
         [subview removeFromSuperview];
+
+    BOOL      prominent = indexPath.section == DeArrowSettingsSectionSupport;
+    BOOL      changelog = indexPath.section == DeArrowSettingsSectionAbout;
+    NSString *title =
+        prominent
+            ? DeArrowLocalized(@"DONATE_ON_KOFI", @"Donate on Ko-fi")
+            : [NSString stringWithFormat:@"%@ %@", DeArrowLocalized(@"VERSION", @"Version"),
+                                         [DeArrowPreferences sharedPreferences].installedVersion];
     UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
     if (@available(iOS 15.0, *))
     {
-        UIButtonConfiguration *configuration = [UIButtonConfiguration tintedButtonConfiguration];
-        configuration.image                  = [UIImage systemImageNamed:@"heart.fill"];
-        configuration.title         = DeArrowLocalized(@"DONATE_ON_KOFI", @"Donate on Ko-fi");
-        configuration.imagePadding  = 8.0;
-        configuration.contentInsets = NSDirectionalEdgeInsetsMake(12.0, 12.0, 12.0, 12.0);
-        configuration.cornerStyle   = UIButtonConfigurationCornerStyleMedium;
-        button.configuration        = configuration;
+        UIButtonConfiguration *configuration =
+            prominent ? [UIButtonConfiguration tintedButtonConfiguration]
+                      : [UIButtonConfiguration plainButtonConfiguration];
+        configuration.image = [UIImage systemImageNamed:prominent ? @"heart.fill" : @"sparkles"];
+        configuration.title = title;
+        configuration.imagePadding  = prominent ? 8.0 : 6.0;
+        configuration.contentInsets = prominent
+                                          ? NSDirectionalEdgeInsetsMake(12.0, 12.0, 12.0, 12.0)
+                                          : NSDirectionalEdgeInsetsMake(8.0, 0.0, 8.0, 0.0);
+        if (prominent)
+            configuration.cornerStyle = UIButtonConfigurationCornerStyleMedium;
+        button.configuration = configuration;
     }
     else
     {
-        [button setImage:[UIImage systemImageNamed:@"heart.fill"] forState:UIControlStateNormal];
-        [button setTitle:DeArrowLocalized(@"DONATE_ON_KOFI", @"Donate on Ko-fi")
-                forState:UIControlStateNormal];
-        button.imageEdgeInsets   = UIEdgeInsetsMake(0.0, 0.0, 0.0, 8.0);
-        button.contentEdgeInsets = UIEdgeInsetsMake(12.0, 12.0, 12.0, 12.0);
+        NSString *symbol = prominent ? @"heart.fill" : @"sparkles";
+        [button setImage:[UIImage systemImageNamed:symbol] forState:UIControlStateNormal];
+        [button setTitle:title forState:UIControlStateNormal];
+        button.imageEdgeInsets   = UIEdgeInsetsMake(0.0, 0.0, 0.0, prominent ? 8.0 : 6.0);
+        button.contentEdgeInsets = UIEdgeInsetsMake(prominent ? 12.0 : 8.0, prominent ? 12.0 : 0.0,
+                                                    prominent ? 12.0 : 8.0, prominent ? 12.0 : 0.0);
     }
     button.translatesAutoresizingMaskIntoConstraints = NO;
-    button.contentHorizontalAlignment                = UIControlContentHorizontalAlignmentCenter;
-    button.accessibilityLabel = DeArrowLocalized(@"DONATE_ON_KOFI", @"Donate on Ko-fi");
+    button.tag                                       = indexPath.section * 100 + indexPath.row;
+    button.accessibilityLabel                        = title;
+    button.contentHorizontalAlignment = prominent ? UIControlContentHorizontalAlignmentCenter
+                                                  : UIControlContentHorizontalAlignmentLeft;
     [button addTarget:self
-                  action:@selector(donateTapped:)
+                  action:prominent ? @selector(donateTapped:) : @selector(openChangelog)
         forControlEvents:UIControlEventTouchUpInside];
+    UILabel            *badge       = nil;
+    DeArrowPreferences *preferences = [DeArrowPreferences sharedPreferences];
+    if (changelog &&
+        ![preferences.lastViewedChangelogVersion isEqualToString:preferences.installedVersion])
+    {
+        badge                                           = [UILabel new];
+        badge.translatesAutoresizingMaskIntoConstraints = NO;
+        badge.text                                      = DeArrowLocalized(@"NEW", @"NEW");
+        badge.textColor                                 = UIColor.whiteColor;
+        badge.backgroundColor                           = UIColor.systemRedColor;
+        badge.font               = [UIFont systemFontOfSize:11.0 weight:UIFontWeightBold];
+        badge.textAlignment      = NSTextAlignmentCenter;
+        badge.layer.cornerRadius = 8.0;
+        badge.clipsToBounds      = YES;
+        [cell.contentView addSubview:badge];
+        [NSLayoutConstraint activateConstraints:@[
+            [badge.centerYAnchor constraintEqualToAnchor:cell.contentView.centerYAnchor],
+            [badge.trailingAnchor constraintEqualToAnchor:cell.contentView.trailingAnchor
+                                                 constant:-16.0],
+            [badge.widthAnchor constraintEqualToConstant:42.0],
+            [badge.heightAnchor constraintEqualToConstant:22.0]
+        ]];
+    }
     [cell.contentView addSubview:button];
+    NSLayoutXAxisAnchor *buttonTrailingAnchor =
+        badge ? badge.leadingAnchor : cell.contentView.trailingAnchor;
+    CGFloat buttonTrailingConstant = badge ? -12.0 : -16.0;
     [NSLayoutConstraint activateConstraints:@[
         [button.topAnchor constraintEqualToAnchor:cell.contentView.topAnchor constant:4.0],
         [button.leadingAnchor constraintEqualToAnchor:cell.contentView.leadingAnchor constant:16.0],
-        [button.trailingAnchor constraintEqualToAnchor:cell.contentView.trailingAnchor
-                                              constant:-16.0],
+        [button.trailingAnchor constraintEqualToAnchor:buttonTrailingAnchor
+                                              constant:buttonTrailingConstant],
         [button.bottomAnchor constraintEqualToAnchor:cell.contentView.bottomAnchor constant:-4.0]
     ]];
     cell.accessoryView   = nil;
@@ -381,11 +403,19 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
     return cell;
 }
 
+- (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section
+{
+    if (section == DeArrowSettingsSectionSupport)
+        return DeArrowLocalized(@"SUPPORT_DEARROW_DETAIL", @"Support DeArrow development");
+    return nil;
+}
+
 - (UITableViewCell *)tableView:(UITableView *)tableView
          cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
-    if (indexPath.section == DeArrowSettingsSectionSupport)
-        return [self donationCellForTableView:tableView];
+    if (indexPath.section == DeArrowSettingsSectionSupport ||
+        indexPath.section == DeArrowSettingsSectionAbout)
+        return [self buttonCellForTableView:tableView indexPath:indexPath];
     static NSString *identifier = @"DeArrowSettingsCell";
     UITableViewCell *cell       = [tableView dequeueReusableCellWithIdentifier:identifier];
     if (!cell)
@@ -431,26 +461,6 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
     else if (indexPath.section == DeArrowSettingsSectionCache)
     {
         cell.textLabel.text = DeArrowLocalized(@"CLEAR_CACHE", @"Clear branding cache");
-    }
-    else if (indexPath.row == 0)
-    {
-        cell.textLabel.text       = DeArrowLocalized(@"VERSION", @"Version");
-        cell.detailTextLabel.text = [DeArrowPreferences sharedPreferences].installedVersion;
-        cell.selectionStyle       = UITableViewCellSelectionStyleNone;
-    }
-    else if (indexPath.row == 1)
-    {
-        cell.textLabel.text             = DeArrowLocalized(@"WHATS_NEW", @"What’s New");
-        DeArrowPreferences *preferences = [DeArrowPreferences sharedPreferences];
-        if (![preferences.lastViewedChangelogVersion isEqualToString:preferences.installedVersion])
-            cell.accessoryView = DeArrowChangelogAccessory();
-        else
-            cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-    }
-    else
-    {
-        cell.textLabel.text = DeArrowLocalized(@"GITHUB", @"DeArrow on GitHub");
-        cell.accessoryType  = UITableViewCellAccessoryDisclosureIndicator;
     }
     return cell;
 }
@@ -534,16 +544,9 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
                                                 handler:nil]];
         [self presentViewController:alert animated:YES completion:nil];
     }
-    else if (indexPath.section == DeArrowSettingsSectionAbout && indexPath.row == 1)
+    else if (indexPath.section == DeArrowSettingsSectionAbout && indexPath.row == 0)
     {
         [self openChangelog];
-    }
-    else if (indexPath.section == DeArrowSettingsSectionAbout && indexPath.row == 2)
-    {
-        [[UIApplication sharedApplication]
-                      openURL:[NSURL URLWithString:@"https://github.com/castdrian/DeArrow"]
-                      options:@{}
-            completionHandler:nil];
     }
 }
 
