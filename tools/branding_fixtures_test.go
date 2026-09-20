@@ -34,8 +34,8 @@ func TestBrandingFixtures(t *testing.T) {
 	if err := json.Unmarshal(data, &fixtures); err != nil {
 		t.Fatal(err)
 	}
-	if len(fixtures) != 11 {
-		t.Fatalf("expected eleven fixtures, got %d", len(fixtures))
+	if len(fixtures) != 15 {
+		t.Fatalf("expected fifteen fixtures, got %d", len(fixtures))
 	}
 	validID := regexp.MustCompile(`^[A-Za-z0-9_-]{11}$`)
 	seen := map[string]bool{}
