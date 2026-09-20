@@ -765,7 +765,7 @@ func releaseDryRun(root string) error {
 		return err
 	}
 	workflowText := string(workflow)
-	for _, value := range []string{"macos-latest", "gmake clean package", "softprops/action-gh-release", "package-update", "owner: 'castdrian'", "repo: 'apt-repo'"} {
+	for _, value := range []string{"macos-latest", "gmake clean package", "softprops/action-gh-release", "package-update", "owner: 'castdrian'", "repo: 'apt-repo'", "Verify release credentials", "REPO_ACCESS_TOKEN"} {
 		if !strings.Contains(workflowText, value) {
 			return fmt.Errorf("release workflow does not contain %q", value)
 		}

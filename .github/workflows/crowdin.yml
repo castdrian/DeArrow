@@ -23,6 +23,15 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Verify Crowdin credentials
+        env:
+          CROWDIN_PROJECT_ID: ${{ secrets.CROWDIN_PROJECT_ID }}
+          CROWDIN_PERSONAL_TOKEN: ${{ secrets.CROWDIN_PERSONAL_TOKEN }}
+        run: |
+          if [ -z "$CROWDIN_PROJECT_ID" ] || [ -z "$CROWDIN_PERSONAL_TOKEN" ]; then
+            echo "::error::CROWDIN_PROJECT_ID and CROWDIN_PERSONAL_TOKEN are required before translation sync"
+            exit 1
+          fi
       - name: Synchronize translations
         uses: crowdin/github-action@v2
         with:
