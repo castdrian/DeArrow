@@ -350,6 +350,10 @@ static void InstallTitleLabelHook(Class targetClass, SEL selector, BOOL plainTex
     Method method = targetClass ? class_getInstanceMethod(targetClass, selector) : NULL;
     if (!method || method_getNumberOfArguments(method) != 3)
         return;
+    char returnType[128] = {0};
+    method_getReturnType(method, returnType, sizeof(returnType));
+    if (returnType[0] != 'v')
+        return;
     char argumentType[128] = {0};
     method_getArgumentType(method, 2, argumentType, sizeof(argumentType));
     if (argumentType[0] != '@')
@@ -390,6 +394,10 @@ static void InstallPlayerTransitionHook(Class targetClass, SEL selector)
     Method method = targetClass ? class_getInstanceMethod(targetClass, selector) : NULL;
     if (!method || method_getNumberOfArguments(method) != 3)
         return;
+    char returnType[128] = {0};
+    method_getReturnType(method, returnType, sizeof(returnType));
+    if (returnType[0] != 'v')
+        return;
     char argumentType[128] = {0};
     method_getArgumentType(method, 2, argumentType, sizeof(argumentType));
     if (argumentType[0] != '@')
@@ -404,8 +412,17 @@ static void InstallPlayerTransitionHook(Class targetClass, SEL selector)
 
 static void InstallPlayerAppearanceHook(Class targetClass)
 {
-    SEL selector = @selector(viewDidAppear:);
-    if (!targetClass || !class_getInstanceMethod(targetClass, selector))
+    SEL    selector = @selector(viewDidAppear:);
+    Method method   = targetClass ? class_getInstanceMethod(targetClass, selector) : NULL;
+    if (!method || method_getNumberOfArguments(method) != 3)
+        return;
+    char returnType[128] = {0};
+    method_getReturnType(method, returnType, sizeof(returnType));
+    if (returnType[0] != 'v')
+        return;
+    char argumentType[128] = {0};
+    method_getArgumentType(method, 2, argumentType, sizeof(argumentType));
+    if (argumentType[0] != 'c' && argumentType[0] != 'B')
         return;
     DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
         return ^(id object, SEL selector, BOOL animated) {
@@ -417,18 +434,7 @@ static void InstallPlayerAppearanceHook(Class targetClass)
 
 void DeArrowInstallTitleIntegration(void)
 {
-    Class textNodeClass = NSClassFromString(@"ASTextNode");
-    if (textNodeClass)
-        InstallTitleLabelHook(textNodeClass, @selector(setAttributedText:), NO);
-
-    Class elementTextNodeClass = NSClassFromString(@"ELMTextNode");
-    if (elementTextNodeClass &&
-        (!textNodeClass ||
-         class_getMethodImplementation(elementTextNodeClass, @selector(setAttributedText:)) !=
-             class_getMethodImplementation(textNodeClass, @selector(setAttributedText:))))
-        InstallTitleLabelHook(elementTextNodeClass, @selector(setAttributedText:), NO);
-
-    for (NSString *className in @[ @"YTFormattedStringLabel", @"YTNewFormattedLabel" ])
+    for (NSString *className in @[ @"YTNewFormattedLabel" ])
     {
         Class titleClass = NSClassFromString(className);
         if (titleClass)

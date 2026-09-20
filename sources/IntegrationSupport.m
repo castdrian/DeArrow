@@ -82,6 +82,13 @@ static id DeArrowParentObject(id object)
         SEL selector = selectors[index];
         if (![object respondsToSelector:selector])
             continue;
+        Method method = class_getInstanceMethod(object_getClass(object), selector);
+        if (!method)
+            continue;
+        char returnType[128] = {0};
+        method_getReturnType(method, returnType, sizeof(returnType));
+        if (returnType[0] != '@')
+            continue;
         id parent = ((id (*)(id, SEL)) objc_msgSend)(object, selector);
         if (parent && parent != object)
             return parent;
