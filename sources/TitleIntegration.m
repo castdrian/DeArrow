@@ -163,42 +163,6 @@ static BOOL IsTitleObject(id object)
            [object respondsToSelector:@selector(setAttributedText:)];
 }
 
-static BOOL IsPlayerController(UIViewController *controller)
-{
-    if (!controller)
-        return NO;
-    NSArray<NSString *> *classNames = @[
-        @"YTPlayerViewController", @"YTReelPlayerViewController", @"YTShortsPlayerViewController",
-        @"YTWatchViewController", @"YTWatchController"
-    ];
-    for (Class current = object_getClass(controller); current;
-         current       = class_getSuperclass(current))
-    {
-        if ([classNames containsObject:NSStringFromClass(current)])
-            return YES;
-    }
-    return NO;
-}
-
-static UIViewController *PlayerControllerForObject(id object)
-{
-    if (!object)
-        return nil;
-    UIViewController *controller = nil;
-    if ([object isKindOfClass:[UIViewController class]])
-        controller = object;
-    else if ([object isKindOfClass:[UIView class]] &&
-             [object respondsToSelector:@selector(_viewControllerForAncestor)])
-        controller = [(UIView *) object _viewControllerForAncestor];
-    for (NSUInteger depth = 0; controller && depth < 8; depth++)
-    {
-        if (IsPlayerController(controller))
-            return controller;
-        controller = controller.parentViewController;
-    }
-    return nil;
-}
-
 static void CaptureTitleObject(id object, VideoMetadataRecord *metadata)
 {
     if (!IsTitleObject(object) || !HasKnownTitleClass(object) || !metadata.videoID.length)
@@ -316,14 +280,7 @@ static VideoMetadataRecord *MetadataForTitleObject(id object)
     VideoMetadataRecord *metadata = DeArrowMetadataForAncestor(object);
     if (metadata)
         return metadata;
-    metadata = DeArrowStoredMetadataForObject(object);
-    if (metadata)
-        return metadata;
-    UIViewController *player = PlayerControllerForObject(object);
-    metadata                 = DeArrowStoredMetadataForObject(player);
-    if (metadata)
-        DeArrowAssociateMetadata(object, metadata);
-    return metadata;
+    return DeArrowStoredMetadataForObject(object);
 }
 
 static void HandleAttributedTitle(id object, SEL selector, NSAttributedString *value, IMP original)
