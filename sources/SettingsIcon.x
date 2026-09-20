@@ -14,7 +14,7 @@ static const void *SharedSettingsIconImageKey(void)
 - (UIImage *)iconImageWithColor:(UIColor *)color
 {
     UIImage *image = objc_getAssociatedObject(self, SharedSettingsIconImageKey());
-    if (!image && self.iconType == 0x64617269)
+    if (!image && self.iconType == 461)
         image = SettingsIconImage();
     return image ?: %orig;
 }
@@ -22,7 +22,7 @@ static const void *SharedSettingsIconImageKey(void)
 - (UIImage *)iconImageWithSelected:(BOOL)selected
 {
     UIImage *image = objc_getAssociatedObject(self, SharedSettingsIconImageKey());
-    if (!image && self.iconType == 0x64617269)
+    if (!image && self.iconType == 461)
         image = SettingsIconImage();
     return image ?: %orig;
 }
