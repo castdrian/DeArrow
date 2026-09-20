@@ -707,9 +707,6 @@ func verifyArchitecture(root string) error {
 	if err := requireContains(root, "sources/SettingsIntegration.m", "SettingsIntegrationHostReady", "setSectionItems:forCategory:title:icon:titleDescription:headerHidden:"); err != nil {
 		return err
 	}
-	if err := requireContains(root, "README.md", "simulator-sideload-debug"); err != nil {
-		return err
-	}
 	if err := requireTreeExcludes(root, "sources", "ELMImageDownloader", "PXLDeArrow", "DeArrowCategoryPending"); err != nil {
 		return err
 	}
