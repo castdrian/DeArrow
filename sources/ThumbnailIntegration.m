@@ -6,6 +6,27 @@
 #import "Metadata.h"
 #import "Preferences.h"
 
+static BOOL DeclaresObjectSetter(Class targetClass, SEL selector)
+{
+    if (!targetClass)
+        return NO;
+    unsigned int count = 0;
+    Method *methods = class_copyMethodList(targetClass, &count);
+    BOOL found = NO;
+    for (unsigned int index = 0; index < count; index++)
+    {
+        Method method = methods[index];
+        if (method_getName(method) != selector || method_getNumberOfArguments(method) != 3)
+            continue;
+        char argumentType[128] = {0};
+        method_getArgumentType(method, 2, argumentType, sizeof(argumentType));
+        found = argumentType[0] == '@';
+        break;
+    }
+    free(methods);
+    return found;
+}
+
 static void ApplyThumbnailToObject(id object, BOOL animated)
 {
     if (!object || [DeArrowPreferences sharedPreferences].isEnabled == NO ||
@@ -112,6 +133,8 @@ void DeArrowRefreshThumbnailObject(id object)
 static void InstallImageNodeSetter(Class targetClass)
 {
     SEL selector = @selector(setImage:);
+    if (!DeclaresObjectSetter(targetClass, selector))
+        return;
     DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
         return ^(id object, SEL selector, UIImage *image) {
             BrandingBinding *binding = DeArrowBindingForObject(object, NO);
@@ -127,7 +150,7 @@ static void InstallImageNodeSetter(Class targetClass)
 
 void DeArrowInstallThumbnailIntegration(void)
 {
-    for (NSString *className in @[ @"ASImageNode", @"ASNetworkImageNode", @"ELMImageNode" ])
+    for (NSString *className in @[ @"ASImageNode" ])
     {
         Class imageNodeClass = NSClassFromString(className);
         if (imageNodeClass)

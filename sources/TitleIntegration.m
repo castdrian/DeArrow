@@ -434,7 +434,12 @@ static void HandlePlainTitle(id object, SEL selector, NSString *text, IMP origin
 
 static void InstallTitleLabelHook(Class targetClass, SEL selector, BOOL plainText)
 {
-    if (!targetClass || !class_getInstanceMethod(targetClass, selector))
+    Method method = targetClass ? class_getInstanceMethod(targetClass, selector) : NULL;
+    if (!method || method_getNumberOfArguments(method) != 3)
+        return;
+    char argumentType[128] = {0};
+    method_getArgumentType(method, 2, argumentType, sizeof(argumentType));
+    if (argumentType[0] != '@')
         return;
     DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
         if (plainText)
@@ -489,18 +494,11 @@ static void InstallPlayerAppearanceHook(Class targetClass)
 
 void DeArrowInstallTitleIntegration(void)
 {
-    for (NSString *className in
-         @[ @"YTNewFormattedLabel", @"YTFormattedStringLabel", @"ELMTextNode", @"ASTextNode" ])
+    for (NSString *className in @[ @"YTNewFormattedLabel" ])
     {
         Class titleClass = NSClassFromString(className);
         if (titleClass)
             InstallTitleLabelHook(titleClass, @selector(setAttributedText:), NO);
-    }
-    for (NSString *className in @[ @"YTNewFormattedLabel", @"YTFormattedStringLabel" ])
-    {
-        Class titleClass = NSClassFromString(className);
-        if (titleClass)
-            InstallTitleLabelHook(titleClass, @selector(setText:), YES);
     }
     for (NSString *className in @[
              @"YTPlayerViewController", @"YTReelPlayerViewController",
