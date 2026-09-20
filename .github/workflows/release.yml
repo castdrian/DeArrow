@@ -43,12 +43,8 @@ jobs:
           echo "PACKAGE=$PACKAGE" >> "$GITHUB_ENV"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "DEB_FILE=${PACKAGE}_${VERSION}_iphoneos-arm64.deb" >> "$GITHUB_ENV"
-      - name: Run fixture tests
-        run: go test ./...
-      - name: Verify architecture
-        run: go run ./scripts/dearrow-tools verify-architecture
-      - name: Verify release inputs
-        run: go run ./scripts/dearrow-tools release-dry-run
+      - name: Run validation
+        run: gmake check
       - name: Generate changelog
         run: go run scripts/generate_changelog.go --version "${{ env.VERSION }}"
       - name: Commit generated changelog

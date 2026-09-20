@@ -22,6 +22,7 @@ include $(THEOS_MAKE_PATH)/tweak.mk
 
 test:
 	go test ./...
+	go vet ./...
 
 verify-architecture:
 	go run ./scripts/dearrow-tools verify-architecture
