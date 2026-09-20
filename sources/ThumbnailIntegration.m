@@ -10,9 +10,9 @@ static BOOL DeclaresObjectSetter(Class targetClass, SEL selector)
 {
     if (!targetClass)
         return NO;
-    unsigned int count = 0;
-    Method *methods = class_copyMethodList(targetClass, &count);
-    BOOL found = NO;
+    unsigned int count   = 0;
+    Method      *methods = class_copyMethodList(targetClass, &count);
+    BOOL         found   = NO;
     for (unsigned int index = 0; index < count; index++)
     {
         Method method = methods[index];

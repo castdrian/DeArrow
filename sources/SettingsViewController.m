@@ -236,10 +236,9 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
     }
     else
     {
-        UIBarButtonItem *backButton =
-            [[UIBarButtonItem alloc] initWithCustomView:SettingsBackButton(
-                                                             DeArrowLocalized(@"SETTINGS", @"Settings"),
-                                                             self, @selector(returnToYouTubeSettings))];
+        UIBarButtonItem *backButton           = [[UIBarButtonItem alloc]
+            initWithCustomView:SettingsBackButton(DeArrowLocalized(@"SETTINGS", @"Settings"), self,
+                                                  @selector(returnToYouTubeSettings))];
         self.navigationItem.leftBarButtonItem = backButton;
     }
 }

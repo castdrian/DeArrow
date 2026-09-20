@@ -139,12 +139,11 @@ UIImage *SettingsIconImage(void)
         CGContextRef context = UIGraphicsGetCurrentContext();
         CGContextSetBlendMode(context, kCGBlendModeClear);
         [[UIBezierPath bezierPathWithArcCenter:CGPointMake(size.width * 65.0 / 128.0,
-                                                            size.height * 64.0 / 128.0)
+                                                           size.height * 64.0 / 128.0)
                                         radius:size.width * 12.0 / 128.0
                                     startAngle:0.0
                                       endAngle:2.0 * M_PI
-                                     clockwise:YES]
-            fill];
+                                     clockwise:YES] fill];
         CGContextSetBlendMode(context, kCGBlendModeNormal);
         image = [UIGraphicsGetImageFromCurrentImageContext()
             imageWithRenderingMode:UIImageRenderingModeAlwaysOriginal];
@@ -348,7 +347,7 @@ void DeArrowInstallSettingsIntegration(void)
         if (SettingsHostAvailable())
             RegisterSettingsCategory();
         else
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)),
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t) (1.0 * NSEC_PER_SEC)),
                            dispatch_get_main_queue(), ^{
                                if (SettingsHostAvailable())
                                    RegisterSettingsCategory();

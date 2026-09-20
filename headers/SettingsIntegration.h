@@ -4,7 +4,7 @@
 @class YTSettingsSectionItemManager;
 @class YTSettingsViewController;
 
-void DeArrowInstallSettingsIntegration(void);
-void DeArrowConfigureSettingsSection(YTSettingsSectionItemManager *manager);
-void DeArrowConfigureSettingsSectionForController(YTSettingsViewController *controller);
+void     DeArrowInstallSettingsIntegration(void);
+void     DeArrowConfigureSettingsSection(YTSettingsSectionItemManager *manager);
+void     DeArrowConfigureSettingsSectionForController(YTSettingsViewController *controller);
 UIImage *SettingsIconImage(void);

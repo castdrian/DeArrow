@@ -66,9 +66,9 @@
 
 @interface YTSettingsSectionItemManager : NSObject
 - (instancetype)initWithParentResponder:(id)parentResponder
-                      controllerDelegate:(id)controllerDelegate
-                            dataDelegate:(id)dataDelegate
-             settingsViewControllerDelegate:(id)settingsViewControllerDelegate;
+                     controllerDelegate:(id)controllerDelegate
+                           dataDelegate:(id)dataDelegate
+         settingsViewControllerDelegate:(id)settingsViewControllerDelegate;
 - (id)parentResponder;
 - (void)updateSectionForCategory:(NSUInteger)category withEntry:(id)entry;
 @end
