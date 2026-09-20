@@ -412,7 +412,12 @@ static void InstallTitleLabelHook(Class targetClass, SEL selector, BOOL plainTex
 
 static void InstallPlayerVideoIDHook(Class targetClass, SEL selector)
 {
-    if (!targetClass || !class_getInstanceMethod(targetClass, selector))
+    Method method = targetClass ? class_getInstanceMethod(targetClass, selector) : NULL;
+    if (!method || method_getNumberOfArguments(method) != 2)
+        return;
+    char returnType[128] = {0};
+    method_getReturnType(method, returnType, sizeof(returnType));
+    if (returnType[0] != '@')
         return;
     DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
         return ^id(id object, SEL selector) {
@@ -425,7 +430,12 @@ static void InstallPlayerVideoIDHook(Class targetClass, SEL selector)
 
 static void InstallPlayerTransitionHook(Class targetClass, SEL selector)
 {
-    if (!targetClass || !class_getInstanceMethod(targetClass, selector))
+    Method method = targetClass ? class_getInstanceMethod(targetClass, selector) : NULL;
+    if (!method || method_getNumberOfArguments(method) != 3)
+        return;
+    char argumentType[128] = {0};
+    method_getArgumentType(method, 2, argumentType, sizeof(argumentType));
+    if (argumentType[0] != '@')
         return;
     DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
         return ^(id object, SEL selector, id value) {
