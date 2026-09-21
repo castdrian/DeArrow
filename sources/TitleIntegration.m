@@ -3,6 +3,7 @@
 #import <UIKit/UIKit.h>
 #import <objc/message.h>
 #import <objc/runtime.h>
+#import <substrate.h>
 
 #import "BrandingClient.h"
 #import "HookSupport.h"
@@ -163,7 +164,7 @@ static BOOL IsTitleObject(id object)
            [object respondsToSelector:@selector(setAttributedText:)];
 }
 
-static void CaptureTitleObject(id object, VideoMetadataRecord *metadata)
+void DeArrowCaptureTitleObject(id object, VideoMetadataRecord *metadata)
 {
     if (!IsTitleObject(object) || !HasKnownTitleClass(object) || !metadata.videoID.length)
         return;
@@ -189,7 +190,7 @@ static void CapturePlayerTitleViews(UIView *view, VideoMetadataRecord *metadata,
     if (!view || !metadata || depth > 12)
         return;
     if (IsTitleObject(view) && HasKnownTitleClass(view))
-        CaptureTitleObject(view, metadata);
+        DeArrowCaptureTitleObject(view, metadata);
     for (UIView *child in view.subviews)
         CapturePlayerTitleViews(child, metadata, depth + 1);
 }
@@ -261,6 +262,20 @@ static void ObservePlayer(id player)
     VideoMetadataRecord *metadata = [VideoMetadataAdapters recordForObject:player];
     if (metadata)
         ObservePlayerMetadata(player, metadata);
+    for (NSString *selectorName in @[ @"currentVideoID", @"contentVideoID", @"videoId" ])
+    {
+        SEL selector = NSSelectorFromString(selectorName);
+        if (![player respondsToSelector:selector])
+            continue;
+        id value = ((id (*)(id, SEL)) objc_msgSend)(player, selector);
+        if ([value isKindOfClass:[NSString class]] && [value length] == 11)
+        {
+            VideoMetadataRecord *videoMetadata =
+                [VideoMetadataAdapters recordForObject:@{@"videoId" : value}];
+            if (videoMetadata)
+                ObservePlayerMetadata(player, videoMetadata);
+        }
+    }
 }
 
 static void ObservePlayerVideoID(id player, id value)
@@ -277,10 +292,38 @@ static void ObservePlayerVideoID(id player, id value)
 
 static VideoMetadataRecord *MetadataForTitleObject(id object)
 {
-    VideoMetadataRecord *metadata = DeArrowMetadataForAncestor(object);
+    VideoMetadataRecord *metadata = DeArrowStoredMetadataForObject(object);
     if (metadata)
         return metadata;
-    return DeArrowStoredMetadataForObject(object);
+    id current = object;
+    for (NSUInteger depth = 0; depth < 5 && current; depth++)
+    {
+        id parent = nil;
+        for (NSString *selectorName in @[ @"yogaParent", @"supernode", @"superNode" ])
+        {
+            SEL selector = NSSelectorFromString(selectorName);
+            if (![current respondsToSelector:selector])
+                continue;
+            Method method          = class_getInstanceMethod(object_getClass(current), selector);
+            char   returnType[128] = {0};
+            if (!method)
+                continue;
+            method_getReturnType(method, returnType, sizeof(returnType));
+            if (returnType[0] != '@')
+                continue;
+            parent = ((id (*)(id, SEL)) objc_msgSend)(current, selector);
+            if (parent && parent != current)
+                break;
+            parent = nil;
+        }
+        if (!parent || parent == current)
+            break;
+        metadata = DeArrowStoredMetadataForObject(parent);
+        if (metadata)
+            return metadata;
+        current = parent;
+    }
+    return nil;
 }
 
 static void HandleAttributedTitle(id object, SEL selector, NSAttributedString *value, IMP original)
@@ -324,25 +367,13 @@ static void HandleAttributedTitle(id object, SEL selector, NSAttributedString *v
     RequestTitle(object, binding);
 }
 
-static void HandlePlainTitle(id object, SEL selector, NSString *text, IMP original)
+static IMP  OriginalFormattedTitleImplementation;
+static BOOL FormattedTitleHookInstalled;
+
+static void HookedFormattedTitle(id object, SEL selector, NSAttributedString *value)
 {
-    ((void (*)(id, SEL, NSString *)) original)(object, selector, text);
-    BrandingBinding *binding = DeArrowBindingForObject(object, NO);
-    if (binding && binding.applyingTitle)
-        return;
-    VideoMetadataRecord *metadata = MetadataForTitleObject(object);
-    if (!metadata || !metadata.videoID.length ||
-        TextContainsURL([[NSAttributedString alloc] initWithString:text ?: @""]))
-        return;
-    DeArrowAssociateMetadata(object, metadata);
-    binding = DeArrowBindingForObject(object, YES);
-    if (!binding.originalTitle.length && text.length)
-        binding.originalTitle = [[NSAttributedString alloc] initWithString:text];
-    if (binding.originalTitle.length)
-    {
-        DeArrowRegisterTitleObject(object);
-        RequestTitle(object, binding);
-    }
+    if (OriginalFormattedTitleImplementation)
+        HandleAttributedTitle(object, selector, value, OriginalFormattedTitleImplementation);
 }
 
 static void InstallTitleLabelHook(Class targetClass, SEL selector, BOOL plainText)
@@ -358,17 +389,13 @@ static void InstallTitleLabelHook(Class targetClass, SEL selector, BOOL plainTex
     method_getArgumentType(method, 2, argumentType, sizeof(argumentType));
     if (argumentType[0] != '@')
         return;
-    DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
-        if (plainText)
-        {
-            return ^(id object, SEL selector, NSString *text) {
-                HandlePlainTitle(object, selector, text, original);
-            };
-        }
-        return ^(id object, SEL selector, NSAttributedString *value) {
-            HandleAttributedTitle(object, selector, value, original);
-        };
-    });
+    if (plainText)
+        return;
+    if (targetClass != NSClassFromString(@"YTFormattedStringLabel") || FormattedTitleHookInstalled)
+        return;
+    FormattedTitleHookInstalled = YES;
+    MSHookMessageEx(targetClass, selector, (IMP) HookedFormattedTitle,
+                    &OriginalFormattedTitleImplementation);
 }
 
 static void InstallPlayerVideoIDHook(Class targetClass, SEL selector)
@@ -434,7 +461,11 @@ static void InstallPlayerAppearanceHook(Class targetClass)
 
 void DeArrowInstallTitleIntegration(void)
 {
-    for (NSString *className in @[ @"YTNewFormattedLabel" ])
+    static BOOL installed;
+    if (installed)
+        return;
+    installed = YES;
+    for (NSString *className in @[ @"YTFormattedStringLabel", @"YTNewFormattedLabel" ])
     {
         Class titleClass = NSClassFromString(className);
         if (titleClass)

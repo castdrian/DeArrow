@@ -26,10 +26,10 @@
 
 BrandingBinding     *DeArrowBindingForObject(id object, BOOL create);
 VideoMetadataRecord *DeArrowStoredMetadataForObject(id object);
-VideoMetadataRecord *DeArrowMetadataForAncestor(id object);
 void                 DeArrowAssociateMetadata(id object, VideoMetadataRecord *metadata);
 void                 DeArrowAssociateVideoID(id object, NSString *videoID);
 void                 DeArrowCancelBinding(id object);
+void                 DeArrowResetBindingForReuse(id object);
 void                 DeArrowRegisterTitleObject(id object);
 void                 DeArrowRefreshTitleObjects(void);
 void                 DeArrowRegisterThumbnailObject(id object);

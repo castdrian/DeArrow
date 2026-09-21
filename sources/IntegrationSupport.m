@@ -63,52 +63,6 @@ VideoMetadataRecord *DeArrowStoredMetadataForObject(id object)
     return DeArrowBindingForObject(object, NO).metadata;
 }
 
-static id DeArrowParentObject(id object)
-{
-    if (!object)
-        return nil;
-    static SEL             yogaParentSelector;
-    static SEL             supernodeSelector;
-    static SEL             superNodeSelector;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        yogaParentSelector = sel_registerName("yogaParent");
-        supernodeSelector  = sel_registerName("supernode");
-        superNodeSelector  = sel_registerName("superNode");
-    });
-    SEL selectors[] = {yogaParentSelector, supernodeSelector, superNodeSelector};
-    for (NSUInteger index = 0; index < sizeof(selectors) / sizeof(selectors[0]); index++)
-    {
-        SEL selector = selectors[index];
-        if (![object respondsToSelector:selector])
-            continue;
-        Method method = class_getInstanceMethod(object_getClass(object), selector);
-        if (!method)
-            continue;
-        char returnType[128] = {0};
-        method_getReturnType(method, returnType, sizeof(returnType));
-        if (returnType[0] != '@')
-            continue;
-        id parent = ((id (*)(id, SEL)) objc_msgSend)(object, selector);
-        if (parent && parent != object)
-            return parent;
-    }
-    return nil;
-}
-
-VideoMetadataRecord *DeArrowMetadataForAncestor(id object)
-{
-    id current = object;
-    for (NSUInteger depth = 0; current && depth < 16; depth++)
-    {
-        current                       = DeArrowParentObject(current);
-        VideoMetadataRecord *metadata = DeArrowStoredMetadataForObject(current);
-        if (metadata)
-            return metadata;
-    }
-    return nil;
-}
-
 void DeArrowAssociateMetadata(id object, VideoMetadataRecord *metadata)
 {
     if (!object || !metadata.videoID.length)
@@ -177,6 +131,21 @@ void DeArrowCancelBinding(id object)
     binding.thumbnailBrandingRetryTime = 0.0;
     binding.thumbnailRetryTime         = 0.0;
     binding.generation += 1;
+}
+
+void DeArrowResetBindingForReuse(id object)
+{
+    BrandingBinding *binding = DeArrowBindingForObject(object, NO);
+    if (!binding)
+        return;
+    [binding.brandingToken cancel];
+    [binding.thumbnailBrandingToken cancel];
+    [binding.thumbnailToken cancel];
+    BrandingBinding *replacement  = [BrandingBinding new];
+    replacement.generation        = binding.generation + 1;
+    replacement.metadataAttempted = NO;
+    objc_setAssociatedObject(object, BrandingBindingKey, replacement,
+                             OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
 void DeArrowRegisterTitleObject(id object)

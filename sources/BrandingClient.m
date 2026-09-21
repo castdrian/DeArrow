@@ -206,7 +206,6 @@ static NSURLRequest *BrandingRequest(NSURL *URL, NSString *accept, NSTimeInterva
     BrandingRequestToken *token   = [BrandingRequestToken new];
     if (!validID || !completion)
         return token;
-
     __weak BrandingRequestToken *weakToken = token;
     __weak typeof(self)          weakSelf  = self;
     token.cancellation                     = ^{

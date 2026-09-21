@@ -1,30 +1,17 @@
 #import "ThumbnailIntegration.h"
 
+#import <objc/runtime.h>
+
 #import "BrandingClient.h"
 #import "HookSupport.h"
 #import "IntegrationSupport.h"
 #import "Metadata.h"
 #import "Preferences.h"
 
-static BOOL DeclaresObjectSetter(Class targetClass, SEL selector)
+static BOOL HasMethodArguments(Class targetClass, SEL selector, unsigned int count)
 {
-    if (!targetClass)
-        return NO;
-    unsigned int count   = 0;
-    Method      *methods = class_copyMethodList(targetClass, &count);
-    BOOL         found   = NO;
-    for (unsigned int index = 0; index < count; index++)
-    {
-        Method method = methods[index];
-        if (method_getName(method) != selector || method_getNumberOfArguments(method) != 3)
-            continue;
-        char argumentType[128] = {0};
-        method_getArgumentType(method, 2, argumentType, sizeof(argumentType));
-        found = argumentType[0] == '@';
-        break;
-    }
-    free(methods);
-    return found;
+    Method method = targetClass ? class_getInstanceMethod(targetClass, selector) : NULL;
+    return method && method_getNumberOfArguments(method) == count;
 }
 
 static BOOL IsLikelyVideoThumbnail(UIImage *image)
@@ -45,9 +32,7 @@ static void ApplyThumbnailToObject(id object, BOOL animated)
     if (!object || [DeArrowPreferences sharedPreferences].isEnabled == NO ||
         [DeArrowPreferences sharedPreferences].replaceThumbnails == NO)
         return;
-    VideoMetadataRecord *metadata = DeArrowMetadataForAncestor(object);
-    if (!metadata)
-        metadata = DeArrowStoredMetadataForObject(object);
+    VideoMetadataRecord *metadata = DeArrowStoredMetadataForObject(object);
     if (!metadata || !metadata.videoID.length)
         return;
     BrandingBinding *binding = DeArrowBindingForObject(object, YES);
@@ -145,10 +130,10 @@ void DeArrowRefreshThumbnailObject(id object)
     ApplyThumbnailToObject(object, NO);
 }
 
-static void InstallImageNodeSetter(Class targetClass)
+static void InstallImageSetter(Class targetClass)
 {
     SEL selector = @selector(setImage:);
-    if (!DeclaresObjectSetter(targetClass, selector))
+    if (!HasMethodArguments(targetClass, selector, 3))
         return;
     DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
         return ^(id object, SEL selector, UIImage *image) {
@@ -156,14 +141,10 @@ static void InstallImageNodeSetter(Class targetClass)
             ((void (*)(id, SEL, UIImage *)) original)(object, selector, image);
             if (binding && binding.applyingThumbnail)
                 return;
-            if (!IsLikelyVideoThumbnail(image))
-                return;
-            VideoMetadataRecord *metadata = DeArrowMetadataForAncestor(object);
-            if (metadata)
-                DeArrowAssociateMetadata(object, metadata);
             binding = DeArrowBindingForObject(object, NO);
-            if (binding)
-                binding.originalImage = image;
+            if (!binding || !IsLikelyVideoThumbnail(image))
+                return;
+            binding.originalImage = image;
             ApplyThumbnailToObject(object, NO);
         };
     });
@@ -171,10 +152,8 @@ static void InstallImageNodeSetter(Class targetClass)
 
 void DeArrowInstallThumbnailIntegration(void)
 {
-    for (NSString *className in @[ @"ASImageNode" ])
-    {
-        Class imageNodeClass = NSClassFromString(className);
-        if (imageNodeClass)
-            InstallImageNodeSetter(imageNodeClass);
-    }
+    Class imageNodeClass = NSClassFromString(@"ASImageNode");
+    if (!imageNodeClass)
+        return;
+    InstallImageSetter(imageNodeClass);
 }

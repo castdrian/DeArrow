@@ -347,6 +347,14 @@ static NSCache<NSString *, VideoMetadataRecord *> *MetadataCache(void)
     return cache;
 }
 
+static NSMapTable *NodeMetadataCache(void)
+{
+    static NSMapTable     *cache;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{ cache = [NSMapTable weakToStrongObjectsMapTable]; });
+    return cache;
+}
+
 static VideoMetadataRecord *CacheRecord(VideoMetadataRecord *record)
 {
     if (!record.videoID.length)
@@ -371,14 +379,29 @@ static VideoMetadataRecord *CacheRecord(VideoMetadataRecord *record)
 {
     if (!node)
         return nil;
+    NSMapTable *nodeCache = NodeMetadataCache();
+    @synchronized(nodeCache)
+    {
+        VideoMetadataRecord *cached = [nodeCache objectForKey:node];
+        if (cached)
+            return cached;
+    }
+    VideoMetadataRecord *record;
     if (NodeHasKnownClass(node, @[ @"ELMCellNode" ]))
-        return CacheRecord(RecordForElementsNode(node));
-    if (NodeHasKnownClass(
-            node, @[ @"YTShortsNode", @"YTShortsVideoNode", @"YTReelNode", @"YTReelItemNode" ]))
-        return CacheRecord(RecordForShortsNode(node));
-    if (NodeHasKnownClass(node, @[ @"YTVideoNode", @"YTVideoWithContextNode", @"YTGridVideoNode" ]))
-        return CacheRecord(RecordForYouTubeVideoNode(node));
-    return nil;
+        record = CacheRecord(RecordForElementsNode(node));
+    else if (NodeHasKnownClass(
+                 node,
+                 @[ @"YTShortsNode", @"YTShortsVideoNode", @"YTReelNode", @"YTReelItemNode" ]))
+        record = CacheRecord(RecordForShortsNode(node));
+    else if (NodeHasKnownClass(node,
+                               @[ @"YTVideoNode", @"YTVideoWithContextNode", @"YTGridVideoNode" ]))
+        record = CacheRecord(RecordForYouTubeVideoNode(node));
+    if (record)
+        @synchronized(nodeCache)
+        {
+            [nodeCache setObject:record forKey:node];
+        }
+    return record;
 }
 
 + (VideoMetadataRecord *)recordForObject:(id)object
@@ -398,6 +421,17 @@ static VideoMetadataRecord *CacheRecord(VideoMetadataRecord *record)
 + (NSString *)videoIDFromURL:(id)value
 {
     return VideoIDFromURLObject(value);
+}
+
++ (void)invalidateNode:(id)node
+{
+    if (!node)
+        return;
+    NSMapTable *nodeCache = NodeMetadataCache();
+    @synchronized(nodeCache)
+    {
+        [nodeCache removeObjectForKey:node];
+    }
 }
 
 @end

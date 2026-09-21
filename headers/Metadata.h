@@ -19,6 +19,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (VideoMetadataRecord *_Nullable)recordForNode:(id)node;
 + (VideoMetadataRecord *_Nullable)recordForObject:(id)object;
 + (NSString *_Nullable)videoIDFromURL:(id)URL;
++ (void)invalidateNode:(id)node;
 
 @end
 
