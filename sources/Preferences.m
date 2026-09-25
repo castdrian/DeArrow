@@ -8,6 +8,7 @@ NSString *const DeArrowPreferencesDidChangeNotification =
 static NSString *const DeArrowPreferenceEnabledKey    = @"enabled";
 static NSString *const DeArrowPreferenceTitleKey      = @"titlePreference";
 static NSString *const DeArrowPreferenceThumbnailsKey = @"replaceThumbnails";
+static NSString *const DeArrowPreferenceUpdatesKey    = @"checkForUpdates";
 static NSString *const DeArrowPreferenceChangelogKey  = @"lastViewedChangelogVersion";
 
 @interface                                    DeArrowPreferences ()
@@ -35,6 +36,7 @@ static NSString *const DeArrowPreferenceChangelogKey  = @"lastViewedChangelogVer
             DeArrowPreferenceEnabledKey : @YES,
             DeArrowPreferenceTitleKey : @(DeArrowTitlePreferenceDeArrow),
             DeArrowPreferenceThumbnailsKey : @YES,
+            DeArrowPreferenceUpdatesKey : @YES,
             DeArrowPreferenceChangelogKey : @""
         }];
     }
@@ -84,6 +86,20 @@ static NSString *const DeArrowPreferenceChangelogKey  = @"lastViewedChangelogVer
     if (self.replaceThumbnails == replaceThumbnails)
         return;
     [self.defaults setBool:replaceThumbnails forKey:DeArrowPreferenceThumbnailsKey];
+    [self.defaults synchronize];
+    [self postChange];
+}
+
+- (BOOL)checkForUpdates
+{
+    return [self.defaults boolForKey:DeArrowPreferenceUpdatesKey];
+}
+
+- (void)setCheckForUpdates:(BOOL)checkForUpdates
+{
+    if (self.checkForUpdates == checkForUpdates)
+        return;
+    [self.defaults setBool:checkForUpdates forKey:DeArrowPreferenceUpdatesKey];
     [self.defaults synchronize];
     [self postChange];
 }

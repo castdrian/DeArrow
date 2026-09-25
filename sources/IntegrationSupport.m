@@ -30,6 +30,72 @@ static NSHashTable *ThumbnailObjects(void)
     return objects;
 }
 
+static NSMutableDictionary<NSString *, VideoMetadataRecord *> *MetadataByTitle(void)
+{
+    static NSMutableDictionary *metadata;
+    static dispatch_once_t      onceToken;
+    dispatch_once(&onceToken, ^{ metadata = [NSMutableDictionary dictionary]; });
+    return metadata;
+}
+
+static NSMutableSet<NSString *> *AmbiguousMetadataTitles(void)
+{
+    static NSMutableSet   *titles;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{ titles = [NSMutableSet set]; });
+    return titles;
+}
+
+static NSString *MetadataTitleKey(NSString *title)
+{
+    NSString *trimmed =
+        [title stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    return trimmed.length > 0 ? trimmed.lowercaseString : nil;
+}
+
+static void IndexMetadataTitle(VideoMetadataRecord *metadata)
+{
+    NSString *key = MetadataTitleKey(metadata.title);
+    if (!key.length)
+        return;
+    BOOL shouldResolve = NO;
+    @synchronized(MetadataByTitle())
+    {
+        if ([AmbiguousMetadataTitles() containsObject:key])
+            return;
+        VideoMetadataRecord *existing = MetadataByTitle()[key];
+        if (!existing)
+        {
+            if (MetadataByTitle().count >= 1024)
+                [MetadataByTitle() removeObjectForKey:MetadataByTitle().allKeys.firstObject];
+            MetadataByTitle()[key] = metadata;
+            shouldResolve          = YES;
+        }
+        else if (![existing.videoID isEqualToString:metadata.videoID])
+        {
+            [MetadataByTitle() removeObjectForKey:key];
+            [AmbiguousMetadataTitles() addObject:key];
+        }
+        else
+            shouldResolve = YES;
+    }
+    if (shouldResolve)
+        DeArrowResolveTitleObjectsForMetadata(metadata);
+}
+
+VideoMetadataRecord *DeArrowMetadataForTitleText(NSString *text)
+{
+    NSString *key = MetadataTitleKey(text);
+    if (!key.length)
+        return nil;
+    @synchronized(MetadataByTitle())
+    {
+        if ([AmbiguousMetadataTitles() containsObject:key])
+            return nil;
+        return MetadataByTitle()[key];
+    }
+}
+
 static void CaptureOriginalVisuals(id object, BrandingBinding *binding)
 {
     if (!object || !binding)
@@ -63,10 +129,94 @@ VideoMetadataRecord *DeArrowStoredMetadataForObject(id object)
     return DeArrowBindingForObject(object, NO).metadata;
 }
 
+VideoMetadataRecord *DeArrowMetadataForNodeAncestor(id object)
+{
+    static SEL             supernodeSelector;
+    static SEL             superNodeSelector;
+    static SEL             yogaParentSelector;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        supernodeSelector  = sel_registerName("supernode");
+        superNodeSelector  = sel_registerName("superNode");
+        yogaParentSelector = sel_registerName("yogaParent");
+    });
+    id current = object;
+    for (NSUInteger depth = 0; current && depth < 8; depth++)
+    {
+        VideoMetadataRecord *metadata = DeArrowStoredMetadataForObject(current);
+        if (metadata)
+            return metadata;
+        id  parent      = nil;
+        SEL selectors[] = {supernodeSelector, yogaParentSelector, superNodeSelector};
+        for (NSUInteger index = 0; index < sizeof(selectors) / sizeof(selectors[0]); index++)
+        {
+            SEL selector = selectors[index];
+            if (![current respondsToSelector:selector])
+                continue;
+            @try
+            {
+                parent = ((id (*)(id, SEL)) objc_msgSend)(current, selector);
+            }
+            @catch (__unused NSException *exception)
+            {
+                parent = nil;
+            }
+            if (parent && parent != current)
+                break;
+        }
+        if (!parent || parent == current)
+            break;
+        current = parent;
+    }
+    return nil;
+}
+
+VideoMetadataRecord *DeArrowMetadataForUIKitAncestor(id object)
+{
+    static SEL             superviewSelector;
+    static SEL             nextResponderSelector;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        superviewSelector     = @selector(superview);
+        nextResponderSelector = @selector(nextResponder);
+    });
+    id current = object;
+    for (NSUInteger depth = 0; current && depth < 8; depth++)
+    {
+        VideoMetadataRecord *metadata = DeArrowStoredMetadataForObject(current);
+        if (metadata)
+            return metadata;
+        id  parent      = nil;
+        SEL selectors[] = {superviewSelector, nextResponderSelector};
+        for (NSUInteger index = 0; index < sizeof(selectors) / sizeof(selectors[0]); index++)
+        {
+            SEL selector = selectors[index];
+            if (![current respondsToSelector:selector])
+                continue;
+            @try
+            {
+                parent = ((id (*)(id, SEL)) objc_msgSend)(current, selector);
+            }
+            @catch (__unused NSException *exception)
+            {
+                parent = nil;
+            }
+            if (parent && parent != current)
+                break;
+            parent = nil;
+        }
+        if (!parent || parent == current)
+            break;
+        current = parent;
+    }
+    return nil;
+}
+
 void DeArrowAssociateMetadata(id object, VideoMetadataRecord *metadata)
 {
     if (!object || !metadata.videoID.length)
         return;
+    IndexMetadataTitle(metadata);
     BrandingBinding *binding = DeArrowBindingForObject(object, YES);
     if ([binding.metadata.videoID isEqualToString:metadata.videoID])
     {
@@ -90,6 +240,7 @@ void DeArrowAssociateMetadata(id object, VideoMetadataRecord *metadata)
     binding.thumbnailToken             = nil;
     binding.originalTitle              = nil;
     binding.originalImage              = nil;
+    binding.replacementImage           = nil;
     binding.brandingResolved           = NO;
     binding.thumbnailBrandingResolved  = NO;
     binding.thumbnailResolved          = NO;
@@ -127,6 +278,7 @@ void DeArrowCancelBinding(id object)
     binding.brandingResolved           = NO;
     binding.thumbnailBrandingResolved  = NO;
     binding.thumbnailResolved          = NO;
+    binding.replacementImage           = nil;
     binding.brandingRetryTime          = 0.0;
     binding.thumbnailBrandingRetryTime = 0.0;
     binding.thumbnailRetryTime         = 0.0;

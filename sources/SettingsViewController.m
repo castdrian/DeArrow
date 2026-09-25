@@ -27,6 +27,20 @@ static NSString *DeArrowLocalized(NSString *key, NSString *fallback)
     return value.length > 0 ? value : fallback;
 }
 
+static UIImage *DeArrowDiscordImage(void)
+{
+    NSString *path =
+        [[DeArrowSettingsBundle() resourcePath] stringByAppendingPathComponent:@"discord.png"];
+    UIImage *image = [UIImage imageWithContentsOfFile:path];
+    if (!image)
+        return nil;
+    UIGraphicsImageRenderer *renderer =
+        [[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(28.0, 28.0)];
+    return [renderer imageWithActions:^(UIGraphicsImageRendererContext *context) {
+        [image drawInRect:CGRectMake(0.0, 0.0, 28.0, 28.0)];
+    }];
+}
+
 static UIButton *SettingsBackButton(NSString *title, id target, SEL action)
 {
     UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
@@ -163,6 +177,7 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
 @interface                              DeArrowSettingsViewController : UITableViewController
 @property (nonatomic, strong) UISwitch *enabledSwitch;
 @property (nonatomic, strong) UISwitch *thumbnailSwitch;
+@property (nonatomic, strong) UISwitch *updateSwitch;
 - (void)configureNavigationItems;
 @end
 
@@ -194,12 +209,16 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
         self.navigationItem.backButtonDisplayMode = UINavigationItemBackButtonDisplayModeMinimal;
     self.enabledSwitch   = [UISwitch new];
     self.thumbnailSwitch = [UISwitch new];
+    self.updateSwitch    = [UISwitch new];
     [self.enabledSwitch addTarget:self
                            action:@selector(enabledChanged:)
                  forControlEvents:UIControlEventValueChanged];
     [self.thumbnailSwitch addTarget:self
                              action:@selector(thumbnailsChanged:)
                    forControlEvents:UIControlEventValueChanged];
+    [self.updateSwitch addTarget:self
+                          action:@selector(updatesChanged:)
+                forControlEvents:UIControlEventValueChanged];
     [self refreshControls];
     [self configureNavigationItems];
 }
@@ -257,6 +276,7 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
     DeArrowPreferences *preferences = [DeArrowPreferences sharedPreferences];
     self.enabledSwitch.on           = preferences.isEnabled;
     self.thumbnailSwitch.on         = preferences.replaceThumbnails;
+    self.updateSwitch.on            = preferences.checkForUpdates;
     [self.tableView reloadData];
 }
 
@@ -268,6 +288,11 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
 - (void)thumbnailsChanged:(UISwitch *)sender
 {
     [DeArrowPreferences sharedPreferences].replaceThumbnails = sender.isOn;
+}
+
+- (void)updatesChanged:(UISwitch *)sender
+{
+    [DeArrowPreferences sharedPreferences].checkForUpdates = sender.isOn;
 }
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView
@@ -283,7 +308,7 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
         return 3;
     if (section == DeArrowSettingsSectionCache)
         return 1;
-    return 1;
+    return 3;
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section
@@ -299,6 +324,11 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
 
 - (NSString *)subtitleForRowAtIndexPath:(NSIndexPath *)indexPath
 {
+    if (indexPath.section == DeArrowSettingsSectionAbout && indexPath.row == 0)
+        return DeArrowLocalized(@"CHECK_FOR_UPDATES_DETAIL",
+                                @"Check for DeArrow updates on launch");
+    if (indexPath.section == DeArrowSettingsSectionAbout && indexPath.row == 2)
+        return DeArrowLocalized(@"READ_LATEST_CHANGES", @"Read the latest changes");
     if (indexPath.section != DeArrowSettingsSectionFiltering)
         return nil;
     if (indexPath.row == DeArrowFilteringRowEnabled)
@@ -321,10 +351,12 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
         [subview removeFromSuperview];
 
     BOOL      prominent = indexPath.section == DeArrowSettingsSectionSupport;
-    BOOL      changelog = indexPath.section == DeArrowSettingsSectionAbout;
+    BOOL      discord   = indexPath.section == DeArrowSettingsSectionAbout && indexPath.row == 1;
+    BOOL      changelog = indexPath.section == DeArrowSettingsSectionAbout && indexPath.row == 2;
     NSString *title =
-        prominent
-            ? DeArrowLocalized(@"DONATE_ON_KOFI", @"Donate on Ko-fi")
+        prominent ? DeArrowLocalized(@"DONATE_ON_KOFI", @"Donate on Ko-fi")
+        : discord
+            ? DeArrowLocalized(@"DISCORD", @"Discord")
             : [NSString stringWithFormat:@"%@ %@", DeArrowLocalized(@"VERSION", @"Version"),
                                          [DeArrowPreferences sharedPreferences].installedVersion];
     UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
@@ -333,8 +365,10 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
         UIButtonConfiguration *configuration =
             prominent ? [UIButtonConfiguration tintedButtonConfiguration]
                       : [UIButtonConfiguration plainButtonConfiguration];
-        configuration.image = [UIImage systemImageNamed:prominent ? @"heart.fill" : @"sparkles"];
-        configuration.title = title;
+        configuration.image =
+            prominent ? [UIImage systemImageNamed:@"heart.fill"]
+                      : (discord ? DeArrowDiscordImage() : [UIImage systemImageNamed:@"sparkles"]);
+        configuration.title         = title;
         configuration.imagePadding  = prominent ? 8.0 : 6.0;
         configuration.contentInsets = prominent
                                           ? NSDirectionalEdgeInsetsMake(12.0, 12.0, 12.0, 12.0)
@@ -345,8 +379,10 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
     }
     else
     {
-        NSString *symbol = prominent ? @"heart.fill" : @"sparkles";
-        [button setImage:[UIImage systemImageNamed:symbol] forState:UIControlStateNormal];
+        UIImage *image =
+            prominent ? [UIImage systemImageNamed:@"heart.fill"]
+                      : (discord ? DeArrowDiscordImage() : [UIImage systemImageNamed:@"sparkles"]);
+        [button setImage:image forState:UIControlStateNormal];
         [button setTitle:title forState:UIControlStateNormal];
         button.imageEdgeInsets   = UIEdgeInsetsMake(0.0, 0.0, 0.0, prominent ? 8.0 : 6.0);
         button.contentEdgeInsets = UIEdgeInsetsMake(prominent ? 12.0 : 8.0, prominent ? 12.0 : 0.0,
@@ -358,7 +394,7 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
     button.contentHorizontalAlignment = prominent ? UIControlContentHorizontalAlignmentCenter
                                                   : UIControlContentHorizontalAlignmentLeft;
     [button addTarget:self
-                  action:prominent ? @selector(donateTapped:) : @selector(openChangelog)
+                  action:prominent ? @selector(donateTapped:) : @selector(aboutButtonTapped:)
         forControlEvents:UIControlEventTouchUpInside];
     UILabel            *badge       = nil;
     DeArrowPreferences *preferences = [DeArrowPreferences sharedPreferences];
@@ -403,6 +439,19 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
     return cell;
 }
 
+- (void)aboutButtonTapped:(UIButton *)sender
+{
+    if (sender.tag % 100 == 1)
+    {
+        [[UIApplication sharedApplication]
+                      openURL:[NSURL URLWithString:@"https://discord.gg/NdaBaxFKnn"]
+                      options:@{}
+            completionHandler:nil];
+        return;
+    }
+    [self openChangelog];
+}
+
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section
 {
     if (section == DeArrowSettingsSectionSupport)
@@ -414,7 +463,8 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
          cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
     if (indexPath.section == DeArrowSettingsSectionSupport ||
-        indexPath.section == DeArrowSettingsSectionAbout)
+        (indexPath.section == DeArrowSettingsSectionAbout &&
+         (indexPath.row == 1 || indexPath.row == 2)))
         return [self buttonCellForTableView:tableView indexPath:indexPath];
     static NSString *identifier = @"DeArrowSettingsCell";
     UITableViewCell *cell       = [tableView dequeueReusableCellWithIdentifier:identifier];
@@ -430,13 +480,21 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
     cell.textLabel.numberOfLines       = 0;
     cell.detailTextLabel.numberOfLines = 0;
     cell.detailTextLabel.textColor     = UIColor.secondaryLabelColor;
+    if (indexPath.section == DeArrowSettingsSectionAbout && indexPath.row == 0)
+    {
+        cell.textLabel.text       = DeArrowLocalized(@"CHECK_FOR_UPDATES", @"Check for Updates");
+        cell.detailTextLabel.text = [self subtitleForRowAtIndexPath:indexPath];
+        cell.accessoryView        = self.updateSwitch;
+        cell.selectionStyle       = UITableViewCellSelectionStyleDefault;
+        return cell;
+    }
     if (indexPath.section == DeArrowSettingsSectionFiltering &&
         indexPath.row == DeArrowFilteringRowEnabled)
     {
         cell.textLabel.text       = DeArrowLocalized(@"ENABLE_DEARROW", @"Enable DeArrow");
         cell.detailTextLabel.text = [self subtitleForRowAtIndexPath:indexPath];
         cell.accessoryView        = self.enabledSwitch;
-        cell.selectionStyle       = UITableViewCellSelectionStyleNone;
+        cell.selectionStyle       = UITableViewCellSelectionStyleDefault;
     }
     else if (indexPath.section == DeArrowSettingsSectionFiltering &&
              indexPath.row == DeArrowFilteringRowTitle)
@@ -456,7 +514,7 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
         cell.textLabel.text       = DeArrowLocalized(@"REPLACE_THUMBNAILS", @"Replace thumbnails");
         cell.detailTextLabel.text = [self subtitleForRowAtIndexPath:indexPath];
         cell.accessoryView        = self.thumbnailSwitch;
-        cell.selectionStyle       = UITableViewCellSelectionStyleNone;
+        cell.selectionStyle       = UITableViewCellSelectionStyleDefault;
     }
     else if (indexPath.section == DeArrowSettingsSectionCache)
     {
@@ -532,6 +590,18 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
     {
         [self presentTitlePickerFromCell:[tableView cellForRowAtIndexPath:indexPath]];
     }
+    else if (indexPath.section == DeArrowSettingsSectionFiltering &&
+             indexPath.row == DeArrowFilteringRowEnabled)
+    {
+        [self.enabledSwitch setOn:!self.enabledSwitch.isOn animated:YES];
+        [self enabledChanged:self.enabledSwitch];
+    }
+    else if (indexPath.section == DeArrowSettingsSectionFiltering &&
+             indexPath.row == DeArrowFilteringRowThumbnails)
+    {
+        [self.thumbnailSwitch setOn:!self.thumbnailSwitch.isOn animated:YES];
+        [self thumbnailsChanged:self.thumbnailSwitch];
+    }
     else if (indexPath.section == DeArrowSettingsSectionCache)
     {
         [[DeArrowPreferences sharedPreferences] clearCache];
@@ -545,6 +615,18 @@ typedef NS_ENUM(NSInteger, DeArrowFilteringRow) {
         [self presentViewController:alert animated:YES completion:nil];
     }
     else if (indexPath.section == DeArrowSettingsSectionAbout && indexPath.row == 0)
+    {
+        [self.updateSwitch setOn:!self.updateSwitch.isOn animated:YES];
+        [self updatesChanged:self.updateSwitch];
+    }
+    else if (indexPath.section == DeArrowSettingsSectionAbout && indexPath.row == 1)
+    {
+        [[UIApplication sharedApplication]
+                      openURL:[NSURL URLWithString:@"https://discord.gg/NdaBaxFKnn"]
+                      options:@{}
+            completionHandler:nil];
+    }
+    else if (indexPath.section == DeArrowSettingsSectionAbout && indexPath.row == 2)
     {
         [self openChangelog];
     }

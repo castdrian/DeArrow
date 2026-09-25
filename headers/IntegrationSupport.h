@@ -12,6 +12,7 @@
 @property (nonatomic, strong, nullable) BrandingRequestToken *thumbnailToken;
 @property (nonatomic, copy, nullable) NSAttributedString     *originalTitle;
 @property (nonatomic, strong, nullable) UIImage              *originalImage;
+@property (nonatomic, strong, nullable) UIImage              *replacementImage;
 @property (nonatomic) NSUInteger                              generation;
 @property (nonatomic) BOOL                                    metadataAttempted;
 @property (nonatomic) BOOL                                    brandingResolved;
@@ -22,10 +23,17 @@
 @property (nonatomic) NSTimeInterval                          thumbnailRetryTime;
 @property (nonatomic) BOOL                                    applyingTitle;
 @property (nonatomic) BOOL                                    applyingThumbnail;
+@property (nonatomic) BOOL                                    titleLayoutConfigured;
+@property (nonatomic) BOOL                                    titleRegistered;
+@property (nonatomic) BOOL                                    thumbnailRegistered;
+@property (nonatomic, copy, nullable) NSString               *metadataLookupText;
 @end
 
 BrandingBinding     *DeArrowBindingForObject(id object, BOOL create);
 VideoMetadataRecord *DeArrowStoredMetadataForObject(id object);
+VideoMetadataRecord *DeArrowMetadataForTitleText(NSString *text);
+VideoMetadataRecord *DeArrowMetadataForNodeAncestor(id object);
+VideoMetadataRecord *DeArrowMetadataForUIKitAncestor(id object);
 void                 DeArrowAssociateMetadata(id object, VideoMetadataRecord *metadata);
 void                 DeArrowAssociateVideoID(id object, NSString *videoID);
 void                 DeArrowCancelBinding(id object);

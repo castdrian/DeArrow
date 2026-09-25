@@ -1,5 +1,6 @@
 #import "BrandingClient.h"
 
+#import <ImageIO/ImageIO.h>
 #import <UIKit/UIKit.h>
 
 @interface                                              BrandingCacheEntry : NSObject
@@ -139,6 +140,24 @@ static NSURL *ThumbnailURL(NSString *videoID)
         componentsWithString:@"https://dearrow-thumb.ajay.app/api/v1/getThumbnail"];
     components.queryItems       = @[ [NSURLQueryItem queryItemWithName:@"videoID" value:videoID] ];
     return components.URL;
+}
+
+static UIImage *ImageFromData(NSData *data)
+{
+    if (!data.length)
+        return nil;
+    UIImage *image = [UIImage imageWithData:data];
+    if (image)
+        return image;
+    CGImageSourceRef source = CGImageSourceCreateWithData((__bridge CFDataRef) data, NULL);
+    if (!source)
+        return nil;
+    CGImageRef cgImage = CGImageSourceCreateImageAtIndex(source, 0, NULL);
+    UIImage   *decoded = cgImage ? [UIImage imageWithCGImage:cgImage] : nil;
+    if (cgImage)
+        CGImageRelease(cgImage);
+    CFRelease(source);
+    return decoded;
 }
 
 static NSURLRequest *BrandingRequest(NSURL *URL, NSString *accept, NSTimeInterval timeout)
@@ -447,7 +466,7 @@ static NSURLRequest *BrandingRequest(NSURL *URL, NSString *accept, NSTimeInterva
         else if (!resultError && statusCode != 200)
             resultError = BrandingError(statusCode, @"Thumbnail request failed");
         if (!resultError && data.length > 0)
-            image = [UIImage imageWithData:data];
+            image = ImageFromData(data);
         if (!image && !resultError)
             negativeResult = YES;
         if (image)

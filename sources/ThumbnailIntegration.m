@@ -4,6 +4,7 @@
 
 #import "BrandingClient.h"
 #import "HookSupport.h"
+#import "ImageSetterSupport.h"
 #import "IntegrationSupport.h"
 #import "Metadata.h"
 #import "Preferences.h"
@@ -27,6 +28,25 @@ static BOOL IsLikelyVideoThumbnail(UIImage *image)
     return smaller > 0.0 && larger / smaller >= 1.25;
 }
 
+static void ApplyReplacementImage(id object, BrandingBinding *binding)
+{
+    UIImage *replacementImage = binding.replacementImage;
+    if (!object || !replacementImage || binding.applyingThumbnail)
+        return;
+    id currentImage = [object respondsToSelector:@selector(image)] ? [object image] : nil;
+    if (currentImage == replacementImage)
+        return;
+    binding.applyingThumbnail = YES;
+    @try
+    {
+        [object setImage:replacementImage];
+    }
+    @finally
+    {
+        binding.applyingThumbnail = NO;
+    }
+}
+
 static void ApplyThumbnailToObject(id object, BOOL animated)
 {
     if (!object || [DeArrowPreferences sharedPreferences].isEnabled == NO ||
@@ -40,6 +60,11 @@ static void ApplyThumbnailToObject(id object, BOOL animated)
     if (!binding.metadata || ![binding.metadata.videoID isEqualToString:metadata.videoID])
         DeArrowAssociateMetadata(object, metadata);
     binding = DeArrowBindingForObject(object, YES);
+    if (binding.replacementImage)
+    {
+        ApplyReplacementImage(object, binding);
+        return;
+    }
     if (binding.thumbnailBrandingToken || binding.thumbnailBrandingResolved ||
         binding.thumbnailBrandingRetryTime > [NSDate date].timeIntervalSince1970)
         return;
@@ -92,9 +117,16 @@ static void ApplyThumbnailToObject(id object, BOOL animated)
                                                        return;
                                                    if (currentBinding.applyingThumbnail)
                                                        return;
+                                                   currentBinding.replacementImage  = image;
                                                    currentBinding.applyingThumbnail = YES;
-                                                   [currentObject setImage:image];
-                                                   currentBinding.applyingThumbnail = NO;
+                                                   @try
+                                                   {
+                                                       [currentObject setImage:image];
+                                                   }
+                                                   @finally
+                                                   {
+                                                       currentBinding.applyingThumbnail = NO;
+                                                   }
                                                }];
                        }];
     if (animated)
@@ -117,6 +149,7 @@ void DeArrowRefreshThumbnailObject(id object)
         binding.thumbnailToken             = nil;
         binding.thumbnailBrandingResolved  = NO;
         binding.thumbnailResolved          = NO;
+        binding.replacementImage           = nil;
         binding.thumbnailBrandingRetryTime = 0.0;
         binding.thumbnailRetryTime         = 0.0;
         if (binding.originalImage && !binding.applyingThumbnail)
@@ -130,30 +163,84 @@ void DeArrowRefreshThumbnailObject(id object)
     ApplyThumbnailToObject(object, NO);
 }
 
-static void InstallImageSetter(Class targetClass)
+static BOOL InstallImageSetter(Class targetClass)
 {
     SEL selector = @selector(setImage:);
     if (!HasMethodArguments(targetClass, selector, 3))
-        return;
-    DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
-        return ^(id object, SEL selector, UIImage *image) {
+        return NO;
+    return DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
+        return ^(id object, UIImage *image) {
             BrandingBinding *binding = DeArrowBindingForObject(object, NO);
-            ((void (*)(id, SEL, UIImage *)) original)(object, selector, image);
             if (binding && binding.applyingThumbnail)
+            {
+                DeArrowInvokeImageSetterWithReplacement(object, command, original, image, nil);
                 return;
+            }
             binding = DeArrowBindingForObject(object, NO);
-            if (!binding || !IsLikelyVideoThumbnail(image))
+            if (!binding)
+            {
+                DeArrowInvokeImageSetterWithReplacement(object, command, original, image, nil);
                 return;
-            binding.originalImage = image;
+            }
+            if (!binding.metadata.videoID.length && !IsLikelyVideoThumbnail(image))
+            {
+                DeArrowInvokeImageSetterWithReplacement(object, command, original, image, nil);
+                return;
+            }
+            if (IsLikelyVideoThumbnail(image))
+                binding.originalImage = image;
+            DeArrowPreferences *preferences = [DeArrowPreferences sharedPreferences];
+            UIImage *replacementImage = preferences.isEnabled && preferences.replaceThumbnails &&
+                                                binding.metadata.videoID.length
+                                            ? binding.replacementImage
+                                            : nil;
+            DeArrowInvokeImageSetterWithReplacement(object, command, original, image,
+                                                    replacementImage);
+            if (replacementImage)
+                return;
+            if (!IsLikelyVideoThumbnail(image))
+                return;
             ApplyThumbnailToObject(object, NO);
+        };
+    });
+}
+
+static BOOL InstallVisibleStateHook(Class targetClass)
+{
+    SEL selector = NSSelectorFromString(@"didEnterVisibleState");
+    if (!HasMethodArguments(targetClass, selector, 2))
+        return NO;
+    return DeArrowInstallInstanceHook(targetClass, selector, ^id(IMP original, SEL command) {
+        return ^(id object) {
+            DeArrowInvokeVisibleStateWithReplacement(
+                object, command, original,
+                ^id(id currentObject) {
+                    DeArrowPreferences *preferences = [DeArrowPreferences sharedPreferences];
+                    if (!preferences.isEnabled || !preferences.replaceThumbnails)
+                        return nil;
+                    return DeArrowBindingForObject(currentObject, NO).replacementImage;
+                },
+                ^(id currentObject, id replacementImage) {
+                    BrandingBinding *binding = DeArrowBindingForObject(currentObject, NO);
+                    if (!binding || binding.replacementImage != replacementImage)
+                        return;
+                    ApplyReplacementImage(currentObject, binding);
+                });
+            BrandingBinding *binding = DeArrowBindingForObject(object, NO);
+            if (binding.metadata.videoID.length && !binding.replacementImage)
+                ApplyThumbnailToObject(object, NO);
         };
     });
 }
 
 void DeArrowInstallThumbnailIntegration(void)
 {
-    Class imageNodeClass = NSClassFromString(@"ASImageNode");
-    if (!imageNodeClass)
-        return;
-    InstallImageSetter(imageNodeClass);
+    for (NSString *className in @[ @"ASImageNode", @"ELMImageNode" ])
+    {
+        Class imageNodeClass = NSClassFromString(className);
+        if (!imageNodeClass)
+            continue;
+        InstallImageSetter(imageNodeClass);
+        InstallVisibleStateHook(imageNodeClass);
+    }
 }

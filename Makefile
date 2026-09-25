@@ -9,7 +9,7 @@ include $(THEOS)/makefiles/common.mk
 TWEAK_NAME = DeArrow
 
 DeArrow_FILES = $(shell find sources -name "*.x*" -o -name "*.m*")
-DeArrow_FRAMEWORKS = UIKit Foundation
+DeArrow_FRAMEWORKS = UIKit Foundation ImageIO UserNotifications
 DEARROW_VERSION := $(shell sed -n 's/^Version: //p' control)
 DeArrow_CFLAGS = -Wno-deprecated-declarations -Wno-nullability-completeness -Wno-objc-method-access -fobjc-arc -Iheaders -DPACKAGE_VERSION='@"$(DEARROW_VERSION)"'
 
@@ -23,6 +23,13 @@ include $(THEOS_MAKE_PATH)/tweak.mk
 test:
 	go test ./...
 	go vet ./...
+	mkdir -p .theos
+	xcrun --sdk macosx clang -fobjc-arc -Iheaders sources/Metadata.m tests/metadata_runtime_test.m -framework Foundation -o .theos/metadata-runtime-test
+	.theos/metadata-runtime-test
+	xcrun --sdk macosx clang -fobjc-arc -Iheaders sources/HookSupport.m tests/hook_abi_runtime_test.m -framework Foundation -o .theos/hook-abi-runtime-test
+	.theos/hook-abi-runtime-test
+	xcrun --sdk macosx clang -fobjc-arc -Iheaders sources/ImageSetterSupport.m tests/image_setter_runtime_test.m -framework Foundation -o .theos/image-setter-runtime-test
+	.theos/image-setter-runtime-test
 
 verify-architecture:
 	go run ./scripts/dearrow-tools verify-architecture

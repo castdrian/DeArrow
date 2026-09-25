@@ -17,6 +17,13 @@ NS_ASSUME_NONNULL_BEGIN
 @interface VideoMetadataAdapters : NSObject
 
 + (VideoMetadataRecord *_Nullable)recordForNode:(id)node;
++ (void)recordForNodeAsync:(id)node
+                completion:(void (^)(VideoMetadataRecord *_Nullable metadata))completion;
++ (void)recordForEntryAsync:(id)entry
+                 completion:(void (^)(VideoMetadataRecord *_Nullable metadata))completion;
++ (VideoMetadataRecord *_Nullable)recordForElement:(id)element;
++ (void)recordForElementAsync:(id)element
+                   completion:(void (^)(VideoMetadataRecord *_Nullable metadata))completion;
 + (VideoMetadataRecord *_Nullable)recordForObject:(id)object;
 + (NSString *_Nullable)videoIDFromURL:(id)URL;
 + (void)invalidateNode:(id)node;
